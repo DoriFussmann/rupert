@@ -8,24 +8,24 @@ type RecordT = { id:string; data:any; createdAt:string };
 function Section({ title, children }: { title:string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
-    <section className="mb-6 rounded-lg border border-slate-200 bg-white shadow-sm">
-      <header className="flex items-center justify-between px-4 py-3 border-b">
-        <h2 className="text-lg font-normal">{title}</h2>
+    <section className="nb-card mb-6">
+      <header className="nb-card-header">
+        <h2 className="nb-card-title">{title}</h2>
         <button className="text-sm underline" onClick={()=>setOpen(o=>!o)}>{open ? "Collapse" : "Expand"}</button>
       </header>
-      {open && <div className="p-4">{children}</div>}
+      {open && <div className="nb-card-body">{children}</div>}
     </section>
   );
 }
 
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={"w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors "+(props.className||"")} />;
+  return <input {...props} className={"nb-input "+(props.className||"")} />;
 }
 function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={"w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors "+(props.className||"")} />;
+  return <select {...props} className={"nb-select "+(props.className||"")} />;
 }
 function Button(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} className={"rounded px-3 py-2 text-sm border bg-black text-white disabled:opacity-60 "+(props.className||"")} />;
+  return <button {...props} className={"nb-btn nb-btn-primary "+(props.className||"")} />;
 }
 
 async function apiJson(url: string, init?: RequestInit) {
@@ -39,7 +39,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [uEmail, setUEmail] = useState(""); const [uName, setUName] = useState(""); const [uRole, setURole] = useState("user"); const [uPass, setUPass] = useState("");
 
-  // COLLECTIONS (Advisors / Structures)
+  // COLLECTIONS
   const [activeSlug, setActiveSlug] = useState<"advisors"|"structures">("advisors");
   const [fields, setFields] = useState<Field[]>([]);
   const [records, setRecords] = useState<RecordT[]>([]);
@@ -47,58 +47,36 @@ export default function AdminPage() {
   const [showFieldsEditor, setShowFieldsEditor] = useState(false);
   const [fDraft, setFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
 
-  // LOADERS
-  async function loadUsers() {
-    const data: User[] = await apiJson("/api/admin/users");
-    setUsers(data);
-  }
+  async function loadUsers() { setUsers(await apiJson("/api/admin/users")); }
   async function loadCollection(slug: "advisors"|"structures") {
     const f: Field[] = await apiJson(`/api/collections/${slug}/fields`);
     setFields(f);
     const r: RecordT[] = await apiJson(`/api/collections/${slug}/records`);
     setRecords(r);
-    // reset draft with empty values
-    const draft: Record<string, any> = {};
-    f.forEach(x => { draft[x.key] = ""; });
-    setRDraft(draft);
+    const draft: Record<string, any> = {}; f.forEach(x => { draft[x.key] = ""; }); setRDraft(draft);
   }
-
   useEffect(() => { loadUsers(); }, []);
   useEffect(() => { loadCollection(activeSlug); }, [activeSlug]);
 
-  // USERS: create
   async function createUser() {
     await apiJson("/api/admin/users", { method: "POST", body: JSON.stringify({ email: uEmail, name: uName || null, role: uRole, password: uPass }) });
-    setUEmail(""); setUName(""); setURole("user"); setUPass("");
-    await loadUsers();
+    setUEmail(""); setUName(""); setURole("user"); setUPass(""); await loadUsers();
   }
-  async function deleteUser(id: string) {
-    await apiJson(`/api/admin/users/${id}`, { method: "DELETE" });
-    await loadUsers();
-  }
+  async function deleteUser(id: string) { await apiJson(`/api/admin/users/${id}`, { method: "DELETE" }); await loadUsers(); }
 
-  // FIELDS: create / update / delete
   async function addField() {
     await apiJson(`/api/collections/${activeSlug}/fields`, { method: "POST", body: JSON.stringify(fDraft) });
-    setFDraft({ label:"", key:"", type:"text", required:false, order:0 });
-    await loadCollection(activeSlug);
+    setFDraft({ label:"", key:"", type:"text", required:false, order:0 }); await loadCollection(activeSlug);
   }
-  async function removeField(id: string) {
-    await apiJson(`/api/collections/${activeSlug}/fields/${id}`, { method: "DELETE" });
-    await loadCollection(activeSlug);
-  }
+  async function removeField(id: string) { await apiJson(`/api/collections/${activeSlug}/fields/${id}`, { method: "DELETE" }); await loadCollection(activeSlug); }
 
-  // RECORDS: create / delete / update
-  async function addRecord() {
-    await apiJson(`/api/collections/${activeSlug}/records`, { method: "POST", body: JSON.stringify({ data: rDraft }) });
-    await loadCollection(activeSlug);
-  }
+  async function addRecord() { await apiJson(`/api/collections/${activeSlug}/records`, { method: "POST", body: JSON.stringify({ data: rDraft }) }); await loadCollection(activeSlug); }
 
   const fieldTypes = useMemo(()=>["text","number","image","json","date"], []);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-normal mb-2">Admin</h1>
+      <h1 className="text-2xl mb-2">Admin</h1>
 
       <Section title="Users">
         <div className="grid md:grid-cols-3 gap-3">
@@ -114,17 +92,22 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead><tr className="text-left border-b font-normal">
-              <th className="py-2 pr-4 font-normal">Email</th><th className="py-2 pr-4 font-normal">Name</th><th className="py-2 pr-4 font-normal">Role</th><th className="py-2 pr-4 font-normal">Actions</th>
-            </tr></thead>
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="nb-th">Email</th>
+                <th className="nb-th">Name</th>
+                <th className="nb-th">Role</th>
+                <th className="nb-th">Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {users.map(u=>(
-                <tr key={u.id} className="border-b">
-                  <td className="py-2 pr-4">{u.email}</td>
-                  <td className="py-2 pr-4">{u.name ?? ""}</td>
-                  <td className="py-2 pr-4">{u.role}</td>
-                  <td className="py-2 pr-4"><button className="text-red-600 underline" onClick={()=>deleteUser(u.id)}>Delete</button></td>
+                <tr key={u.id} className="border-b border-slate-100">
+                  <td className="nb-td">{u.email}</td>
+                  <td className="nb-td">{u.name ?? ""}</td>
+                  <td className="nb-td"><span className="nb-badge">{u.role}</span></td>
+                  <td className="nb-td"><button className="text-red-600 underline" onClick={()=>deleteUser(u.id)}>Delete</button></td>
                 </tr>
               ))}
             </tbody>
@@ -135,77 +118,91 @@ export default function AdminPage() {
       <Section title="Collections">
         <div className="mb-3 flex items-center gap-2">
           <span className="text-sm text-slate-600">Active:</span>
-          <Button onClick={()=>setActiveSlug("advisors")} className={activeSlug==="advisors" ? "" : "bg-slate-700"}>Advisors</Button>
-          <Button onClick={()=>setActiveSlug("structures")} className={activeSlug==="structures" ? "" : "bg-slate-700"}>Structures</Button>
+          <button onClick={()=>setActiveSlug("advisors")} className={"nb-btn "+(activeSlug==="advisors"?"nb-btn-primary":"nb-btn-secondary")}>Advisors</button>
+          <button onClick={()=>setActiveSlug("structures")} className={"nb-btn "+(activeSlug==="structures"?"nb-btn-primary":"nb-btn-secondary")}>Structures</button>
           <button className="text-sm underline ml-auto" onClick={()=>setShowFieldsEditor(s=>!s)}>{showFieldsEditor ? "Hide Fields" : "Modify Fields"}</button>
         </div>
 
         {showFieldsEditor && (
-          <div className="mb-6 rounded border p-3">
-            <h3 className="font-normal mb-2">Fields for "{activeSlug}"</h3>
-            <div className="overflow-x-auto mb-3">
-              <table className="min-w-full text-sm">
-                <thead><tr className="text-left border-b font-normal">
-                  <th className="py-2 pr-4 font-normal">Label</th><th className="py-2 pr-4 font-normal">Key</th><th className="py-2 pr-4 font-normal">Type</th><th className="py-2 pr-4 font-normal">Required</th><th className="py-2 pr-4 font-normal">Order</th><th className="py-2 pr-4 font-normal">Actions</th>
-                </tr></thead>
+          <div className="nb-card mb-6">
+            <div className="nb-card-body">
+              <h3 className="font-medium mb-2">Fields for "{activeSlug}"</h3>
+              <div className="overflow-x-auto mb-3">
+                <table className="nb-table">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="nb-th">Label</th>
+                      <th className="nb-th">Key</th>
+                      <th className="nb-th">Type</th>
+                      <th className="nb-th">Required</th>
+                      <th className="nb-th">Order</th>
+                      <th className="nb-th">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fields.map(f=>(
+                      <tr key={f.id} className="border-b border-slate-100">
+                        <td className="nb-td">{f.label}</td>
+                        <td className="nb-td">{f.key}</td>
+                        <td className="nb-td">{f.type}</td>
+                        <td className="nb-td">{f.required ? "Yes" : "No"}</td>
+                        <td className="nb-td">{f.order}</td>
+                        <td className="nb-td"><button className="text-red-600 underline" onClick={()=>removeField(f.id)}>Delete</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="grid md:grid-cols-5 gap-2 items-end">
+                <TextInput placeholder="Label" value={fDraft.label} onChange={e=>setFDraft({...fDraft, label:e.target.value})} />
+                <TextInput placeholder="key" value={fDraft.key} onChange={e=>setFDraft({...fDraft, key:e.target.value})} />
+                <Select value={fDraft.type} onChange={e=>setFDraft({...fDraft, type:e.target.value})}>
+                  {fieldTypes.map(t=><option key={t} value={t}>{t}</option>)}
+                </Select>
+                <Select value={String(fDraft.required)} onChange={e=>setFDraft({...fDraft, required: e.target.value==="true"})}>
+                  <option value="false">required: false</option>
+                  <option value="true">required: true</option>
+                </Select>
+                <TextInput placeholder="order" value={String(fDraft.order)} onChange={e=>setFDraft({...fDraft, order: Number(e.target.value)||0})} />
+                <div className="md:col-span-5"><button className="nb-btn nb-btn-primary" onClick={addField} disabled={!fDraft.label || !fDraft.key}>Add Field</button></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="nb-card">
+          <div className="nb-card-body">
+            <h3 className="font-medium mb-3">Records — {activeSlug}</h3>
+            <div className="grid md:grid-cols-3 gap-2 mb-3">
+              {fields.map(f => (
+                <TextInput key={f.id} placeholder={f.label} value={rDraft[f.key] ?? ""} onChange={e=>setRDraft({ ...rDraft, [f.key]: e.target.value })} />
+              ))}
+              <div className="md:col-span-3">
+                <button className="nb-btn nb-btn-primary" onClick={addRecord}>Add Record</button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="nb-table">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    {fields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                    <th className="nb-th">Created</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {fields.map(f=>(
-                    <tr key={f.id} className="border-b">
-                      <td className="py-2 pr-4">{f.label}</td>
-                      <td className="py-2 pr-4">{f.key}</td>
-                      <td className="py-2 pr-4">{f.type}</td>
-                      <td className="py-2 pr-4">{f.required ? "Yes" : "No"}</td>
-                      <td className="py-2 pr-4">{f.order}</td>
-                      <td className="py-2 pr-4"><button className="text-red-600 underline" onClick={()=>removeField(f.id)}>Delete</button></td>
+                  {records.map(r=>(
+                    <tr key={r.id} className="border-b border-slate-100">
+                      {fields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                      <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            <div className="grid md:grid-cols-5 gap-2 items-end">
-              <TextInput placeholder="Label" value={fDraft.label} onChange={e=>setFDraft({...fDraft, label:e.target.value})} />
-              <TextInput placeholder="key" value={fDraft.key} onChange={e=>setFDraft({...fDraft, key:e.target.value})} />
-              <Select value={fDraft.type} onChange={e=>setFDraft({...fDraft, type:e.target.value})}>
-                {fieldTypes.map(t=><option key={t} value={t}>{t}</option>)}
-              </Select>
-              <Select value={String(fDraft.required)} onChange={e=>setFDraft({...fDraft, required: e.target.value==="true"})}>
-                <option value="false">required: false</option>
-                <option value="true">required: true</option>
-              </Select>
-              <TextInput placeholder="order" value={String(fDraft.order)} onChange={e=>setFDraft({...fDraft, order: Number(e.target.value)||0})} />
-              <div className="md:col-span-5"><Button onClick={addField} disabled={!fDraft.label || !fDraft.key}>Add Field</Button></div>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded border p-3">
-          <h3 className="font-normal mb-3">Records — {activeSlug}</h3>
-          <div className="grid md:grid-cols-3 gap-2 mb-3">
-            {fields.map(f => (
-              <TextInput key={f.id} placeholder={f.label} value={rDraft[f.key] ?? ""} onChange={e=>setRDraft({ ...rDraft, [f.key]: e.target.value })} />
-            ))}
-            <div className="md:col-span-3">
-              <Button onClick={addRecord}>Add Record</Button>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead><tr className="text-left border-b font-normal">
-                {fields.map(f => <th key={f.id} className="py-2 pr-4 font-normal">{f.label}</th>)}
-                <th className="py-2 pr-4 font-normal">Created</th>
-              </tr></thead>
-              <tbody>
-                {records.map(r=>(
-                  <tr key={r.id} className="border-b">
-                    {fields.map(f => <td key={f.id} className="py-2 pr-4">{String(r.data?.[f.key] ?? "")}</td>)}
-                    <td className="py-2 pr-4">{new Date(r.createdAt).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
+
       </Section>
     </div>
   );

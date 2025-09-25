@@ -2,6 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
-* { outline-color: #0A66C2; }
-button, input { @apply focus-visible:ring-2 ring-offset-2 ring-sky-600; }
+/* Theme tokens */
+:root {
+  --primary: #0A66C2;
+  --border: #E5E7EB;
+  --muted: #64748B;
+  color-scheme: light;
+}
+
+/* Global focus polish */
+* { outline-color: var(--primary); }
+button, input, select {
+  @apply focus-visible:ring-2 ring-offset-2 ring-sky-600;
+}
+
+/* Components */
+@layer components {
+  .nb-container { @apply mx-auto max-w-[1120px] px-6; }
+
+  .nb-card { @apply rounded-lg border border-slate-200 bg-white shadow-sm; }
+  .nb-card-header { @apply flex items-center justify-between px-4 py-3 border-b border-slate-200; }
+  .nb-card-title { @apply text-lg font-medium; }
+  .nb-card-body { @apply p-4; }
+
+  .nb-btn { @apply inline-flex items-center justify-center rounded px-3 py-2 text-sm border bg-black text-white transition-opacity disabled:opacity-60; }
+  .nb-btn-secondary { @apply bg-white text-slate-900 border-slate-300 hover:bg-slate-50; }
+  .nb-btn-primary { @apply bg-[color:var(--primary)] border-[color:var(--primary)] hover:opacity-90; }
+
+  .nb-input { @apply w-full border border-slate-300 rounded px-3 py-2 text-sm placeholder-slate-400; }
+  .nb-select { @apply w-full border border-slate-300 rounded px-3 py-2 text-sm; }
+
+  .nb-table { @apply min-w-full text-sm; }
+  .nb-th { @apply text-left border-b border-slate-200 py-2 pr-4 font-medium text-slate-700; }
+  .nb-td { @apply border-b border-slate-100 py-2 pr-4; }
+
+  .nb-badge { @apply inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-slate-700 border-slate-300 bg-slate-50; }
+}
+
+/* Header polish */
+header .brand { @apply font-medium; }
+header nav a { @apply hover:underline; }
