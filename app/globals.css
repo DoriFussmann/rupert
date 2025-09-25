@@ -12,38 +12,135 @@
 
 /* Global focus polish */
 * { outline-color: var(--primary); }
-button, input, select {
-  @apply focus-visible:ring-2 ring-offset-2;
+
+/* Remove default bold styling */
+h1, h2, h3, h4, h5, h6, th, .brand {
+  font-weight: normal;
 }
 
-/* Components */
-@layer components {
-  .nb-container { 
-    margin: 0 auto;
-    max-width: 1120px;
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-  }
+/* Components - Pure CSS since Tailwind is broken */
+.nb-container { 
+  margin: 0 auto;
+  max-width: 1120px;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
 
-  .nb-card { @apply rounded-lg border border-slate-200 bg-white shadow-sm; }
-  .nb-card-header { @apply flex items-center justify-between px-4 py-3 border-b border-slate-200; }
-  .nb-card-title { @apply text-lg font-medium; }
-  .nb-card-body { @apply p-4; }
+.nb-card { 
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background-color: white;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
 
-  .nb-btn { @apply inline-flex items-center justify-center rounded px-3 py-2 text-sm border bg-black text-white transition-opacity disabled:opacity-60; }
-  .nb-btn-secondary { @apply bg-white text-slate-900 border-slate-300 hover:bg-slate-50; }
-  .nb-btn-primary { @apply bg-[color:var(--primary)] border-[color:var(--primary)] hover:opacity-90; }
+.nb-card-header { 
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
 
-  .nb-input { @apply w-full border border-slate-300 rounded px-3 py-2 text-sm placeholder-slate-400; }
-  .nb-select { @apply w-full border border-slate-300 rounded px-3 py-2 text-sm; }
+.nb-card-title { 
+  font-size: 1.125rem;
+  font-weight: normal;
+}
 
-  .nb-table { @apply min-w-full text-sm; }
-  .nb-th { @apply text-left border-b border-slate-200 py-2 pr-4 font-medium text-slate-700; }
-  .nb-td { @apply border-b border-slate-100 py-2 pr-4; }
+.nb-card-body { 
+  padding: 1rem;
+}
 
-  .nb-badge { @apply inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-slate-700 border-slate-300 bg-slate-50; }
+.nb-btn { 
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid;
+  background-color: black;
+  color: white;
+  transition: opacity 0.2s;
+  font-weight: normal;
+}
+
+.nb-btn:disabled {
+  opacity: 0.6;
+}
+
+.nb-btn-secondary { 
+  background-color: white;
+  color: #0f172a;
+  border-color: #d1d5db;
+}
+
+.nb-btn-secondary:hover {
+  background-color: #f8fafc;
+}
+
+.nb-btn-primary { 
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.nb-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.nb-input { 
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.nb-input::placeholder {
+  color: #9ca3af;
+}
+
+.nb-select { 
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.nb-table { 
+  min-width: 100%;
+  font-size: 0.875rem;
+}
+
+.nb-th { 
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.5rem 1rem 0.5rem 0;
+  font-weight: normal;
+  color: #374151;
+}
+
+.nb-td { 
+  border-bottom: 1px solid #f1f5f9;
+  padding: 0.5rem 1rem 0.5rem 0;
+}
+
+.nb-badge { 
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid #d1d5db;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  color: #374151;
+  background-color: #f8fafc;
 }
 
 /* Header polish */
-header .brand { @apply font-medium; }
-header nav a { @apply hover:underline; }
+header .brand { 
+  font-weight: normal;
+}
+
+header nav a:hover { 
+  text-decoration: underline;
+}
