@@ -52,6 +52,8 @@ export default function StructureEditor({ recordId }: Props) {
   const [compiledAt, setCompiledAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [treeOpen, setTreeOpen] = useState(false);
 
   // Load record data
   useEffect(() => {
@@ -257,47 +259,29 @@ export default function StructureEditor({ recordId }: Props) {
   }
 
   return (
-    <div className="h-screen flex">
+    <div className="h-full flex">
       {/* Left Pane - Editor */}
-      <div className="flex-1 p-6 border-r overflow-y-auto">
+      <div className="flex-1 p-6 border-r overflow-y-auto max-h-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-normal mb-4">Structure Editor</h1>
+          <h1 className="text-lg font-normal mb-4">Structure Editor</h1>
           
           {/* Title Input */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Title</label>
+          <div className="mb-4 flex items-center gap-3">
+            <label className="text-sm font-medium">Title</label>
             <input
               type="text"
               value={originalData.title}
               onChange={(e) => setOriginalData(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full border border-gray-300 rounded px-3 py-2"
+              className="flex-1 border border-gray-300 rounded-sm px-3 py-2 text-sm"
               placeholder="Structure title"
             />
           </div>
 
-          {/* Save Buttons */}
-          <div className="flex gap-2">
-            <button
-              onClick={saveRecord}
-              disabled={loading}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
-            >
-              {loading ? "Saving..." : "Save"}
-            </button>
-            <button
-              onClick={saveAndCompile}
-              disabled={loading}
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
-            >
-              {loading ? "Saving & Compiling..." : "Save & Compile"}
-            </button>
-          </div>
         </div>
 
         {/* Tree Editor */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Structure Tree</h2>
+          <div className="flex justify-end">
             <button
               onClick={addTopic}
               className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
@@ -313,7 +297,7 @@ export default function StructureEditor({ recordId }: Props) {
                   type="text"
                   value={topic.title}
                   onChange={(e) => updateTopicTitle(topicIndex, e.target.value)}
-                  className="w-full font-medium border-b border-gray-300 bg-transparent"
+                  className="w-full font-medium border-b border-gray-300 bg-transparent text-sm"
                   placeholder="Topic title"
                 />
                 <button
@@ -331,7 +315,7 @@ export default function StructureEditor({ recordId }: Props) {
                       type="text"
                       value={subtopic.title}
                       onChange={(e) => updateSubtopicTitle(topicIndex, subtopicIndex, e.target.value)}
-                      className="w-full border-b border-gray-300 bg-transparent"
+                      className="w-full border-b border-gray-300 bg-transparent text-sm"
                       placeholder="Subtopic title"
                     />
                     <button
@@ -348,7 +332,7 @@ export default function StructureEditor({ recordId }: Props) {
                         type="text"
                         value={question.text}
                         onChange={(e) => updateQuestionText(topicIndex, subtopicIndex, questionIndex, e.target.value)}
-                        className="w-full text-sm border-b border-gray-200 bg-transparent"
+                        className="w-full text-xs border-b border-gray-200 bg-transparent"
                         placeholder="Question text"
                       />
                     </div>
@@ -358,41 +342,108 @@ export default function StructureEditor({ recordId }: Props) {
             </div>
           ))}
         </div>
+
+        {/* Save Buttons */}
+        <div className="mt-6 pt-4 border-t flex gap-2">
+          <button
+            onClick={saveRecord}
+            disabled={loading}
+            className="bg-blue-500 text-white px-4 py-2 rounded-sm hover:bg-blue-600 disabled:opacity-50"
+          >
+            {loading ? "Saving..." : "Save"}
+          </button>
+          <button
+            onClick={saveAndCompile}
+            disabled={loading}
+            className="bg-green-500 text-white px-4 py-2 rounded-sm hover:bg-green-600 disabled:opacity-50"
+          >
+            {loading ? "Saving & Compiling..." : "Save & Compile"}
+          </button>
+        </div>
       </div>
 
       {/* Right Pane - Preview */}
-      <div className="flex-1 p-6 overflow-y-auto">
-        {/* Live Preview Section */}
+      <div className="flex-1 p-6 overflow-y-auto max-h-full">
+        {/* Compiled Tree Section */}
         <div className="mb-6">
-          <h2 className="text-lg font-medium mb-4">Preview (Live)</h2>
-          <button
-            onClick={generatePreview}
-            disabled={loading}
-            className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 disabled:opacity-50"
-          >
-            {loading ? "Generating..." : "Generate JSON"}
-          </button>
+          <h2 className="text-base font-normal mb-4">Compiled Tree</h2>
         </div>
 
-        {/* Saved Preview Section */}
-        <div className="mb-6 border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-medium">Saved (from DB)</h2>
-              {compiledAt && (
-                <p className="text-sm text-gray-600">
-                  Compiled at: {new Date(compiledAt).toLocaleString()}
-                </p>
+        <div>
+          {/* Always show saved results section */}
+          {savedCompileResult ? (
+            <div className="space-y-4">
+              {/* Warnings */}
+              {savedCompileResult.warnings && savedCompileResult.warnings.length > 0 && (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <h4 className="font-medium text-yellow-800 mb-2">Warnings:</h4>
+                  <ul className="text-sm text-yellow-700">
+                    {savedCompileResult.warnings.map((warning, index) => (
+                      <li key={index}>• {warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Collapsible Outline */}
+              {savedCompileResult.outline && (
+                <div className="border border-gray-200 rounded-sm">
+                  <button
+                    onClick={() => setOutlineOpen(!outlineOpen)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
+                  >
+                    <span className="text-sm font-normal">Outline</span>
+                    <svg 
+                      className={`w-4 h-4 transform transition-transform ${outlineOpen ? 'rotate-90' : ''}`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  {outlineOpen && (
+                    <div className="border-t border-gray-200 p-3">
+                      <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto font-mono">
+                        {JSON.stringify(savedCompileResult.outline, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Collapsible Compiled Tree */}
+              {savedCompileResult.tree && (
+                <div className="border border-gray-200 rounded-sm">
+                  <button
+                    onClick={() => setTreeOpen(!treeOpen)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
+                  >
+                    <span className="text-sm font-normal">Compiled Tree</span>
+                    <svg 
+                      className={`w-4 h-4 transform transition-transform ${treeOpen ? 'rotate-90' : ''}`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  {treeOpen && (
+                    <div className="border-t border-gray-200 p-3">
+                      <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto font-mono">
+                        {JSON.stringify(savedCompileResult.tree, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-            <button
-              onClick={refreshFromDB}
-              disabled={loading}
-              className="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 disabled:opacity-50"
-            >
-              Refresh from DB
-            </button>
-          </div>
+          ) : (
+            <div>
+              <p className="text-gray-500 text-sm">No saved compilation results. Use "Save & Compile" to generate and save results to the database.</p>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -401,82 +452,7 @@ export default function StructureEditor({ recordId }: Props) {
           </div>
         )}
 
-        {/* Live Preview Results */}
-        {compileResult && (
-          <div className="space-y-4 mb-6">
-            <h3 className="font-medium text-orange-700">Live Preview Results:</h3>
-            
-            {/* Warnings */}
-            {compileResult.warnings.length > 0 && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                <h4 className="font-medium text-yellow-800 mb-2">Warnings:</h4>
-                <ul className="text-sm text-yellow-700">
-                  {compileResult.warnings.map((warning, index) => (
-                    <li key={index}>• {warning}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
-            {/* Outline */}
-            <div>
-              <h4 className="font-medium mb-2">Outline:</h4>
-              <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto">
-                {JSON.stringify(compileResult.outline, null, 2)}
-              </pre>
-            </div>
-
-            {/* Compiled Tree */}
-            <div>
-              <h4 className="font-medium mb-2">Compiled Tree:</h4>
-              <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto">
-                {JSON.stringify(compileResult.tree, null, 2)}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {/* Saved Preview Results */}
-        {savedCompileResult && (
-          <div className="space-y-4 border-t pt-4">
-            <h3 className="font-medium text-green-700">Saved (DB) Results:</h3>
-            
-            {/* Warnings */}
-            {savedCompileResult.warnings.length > 0 && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                <h4 className="font-medium text-yellow-800 mb-2">Warnings:</h4>
-                <ul className="text-sm text-yellow-700">
-                  {savedCompileResult.warnings.map((warning, index) => (
-                    <li key={index}>• {warning}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Outline */}
-            <div>
-              <h4 className="font-medium mb-2">Outline:</h4>
-              <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto">
-                {JSON.stringify(savedCompileResult.outline, null, 2)}
-              </pre>
-            </div>
-
-            {/* Compiled Tree */}
-            <div>
-              <h4 className="font-medium mb-2">Compiled Tree:</h4>
-              <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto">
-                {JSON.stringify(savedCompileResult.tree, null, 2)}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {/* No saved results message */}
-        {!savedCompileResult && (
-          <div className="border-t pt-4">
-            <p className="text-gray-500 text-sm">No saved compilation results. Use "Save & Compile" to generate and save results to the database.</p>
-          </div>
-        )}
       </div>
     </div>
   );

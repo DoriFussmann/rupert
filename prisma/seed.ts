@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 const COLLECTIONS = [
   { name: "Advisors", slug: "advisors" },
   { name: "Structures", slug: "structures" },
+  { name: "Companies", slug: "companies" },
+  { name: "Tasks", slug: "tasks" },
 ] as const;
 
 async function ensureCollections() {
@@ -25,6 +27,9 @@ async function seedAdvisorFields() {
     { label: "Name", key: "name", type: "text", required: true, order: 1 },
     { label: "Role", key: "role", type: "text", required: false, order: 2 },
     { label: "One-Liner", key: "oneliner", type: "text", required: false, order: 3 },
+    { label: "Prompt", key: "prompt", type: "text", required: false, order: 4 },
+    { label: "Image", key: "image", type: "image", required: false, order: 5 },
+    { label: "Knowledge Feed", key: "knowledgeFeed", type: "text", required: false, order: 6 },
   ];
 
   for (const f of fields) {
@@ -215,11 +220,51 @@ async function seedStructureTemplates() {
   console.log(`Structure templates: created ${created}, updated ${updated}`);
 }
 
+async function seedCompaniesCollection() {
+  const companies = await prisma.collection.findUnique({ where: { slug: "companies" } });
+  if (!companies) return;
+
+  const fields = [
+    { label: "Name", key: "name", type: "text", required: true, order: 1 },
+    { label: "Description", key: "description", type: "richtext", required: false, order: 2 },
+    { label: "Raw Data", key: "rawData", type: "json", required: false, order: 3 },
+    { label: "Data Map", key: "dataMap", type: "json", required: false, order: 4 },
+  ];
+
+  for (const f of fields) {
+    await prisma.field.upsert({
+      where: { collectionId_key: { collectionId: companies.id, key: f.key } },
+      update: { ...f },
+      create: { ...f, collectionId: companies.id },
+    });
+  }
+}
+
+async function seedTasksCollection() {
+  const tasks = await prisma.collection.findUnique({ where: { slug: "tasks" } });
+  if (!tasks) return;
+
+  const fields = [
+    { label: "Name", key: "name", type: "text", required: true, order: 1 },
+    { label: "Task Prompt", key: "taskPrompt", type: "text", required: false, order: 2 },
+  ];
+
+  for (const f of fields) {
+    await prisma.field.upsert({
+      where: { collectionId_key: { collectionId: tasks.id, key: f.key } },
+      update: { ...f },
+      create: { ...f, collectionId: tasks.id },
+    });
+  }
+}
+
 async function main() {
   await ensureCollections();
   await seedAdvisorFields();
   await seedStructuresCollection();
   await seedStructureTemplates();
+  await seedCompaniesCollection();
+  await seedTasksCollection();
 }
 
 main()
