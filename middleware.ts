@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(process.env.AUTH_JWT_SECRET || process.env.JWT_SECRET || "dev-secret");
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret-key");
 
 // Verify cookie token (returns true if valid)
 async function isAuthed(req: NextRequest) {
