@@ -1,4 +1,4 @@
-# Zero-to-Production — Admin CMS Baseline
+# Starter — Admin CMS Baseline
 
 Clean Next.js + Prisma + JWT starter with predefined Collections (Advisors, Structures), Admin dashboard, and CRUD APIs.
 
