@@ -6,10 +6,13 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "create-admin": "node scripts/create-admin.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.2",
     "jose": "^6.1.0",
     "next": "15.5.4",
     "prisma": "^6.16.2",
