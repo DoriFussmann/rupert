@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </header>
-        <main className="mx-auto max-w-[1120px] px-6 py-6">
+        <main className="mx-auto max-w-[1120px] px-6 py-6 border-2 border-red-500">
           {children}
         </main>
       </body>

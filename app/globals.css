@@ -13,7 +13,7 @@
 /* Global focus polish */
 * { outline-color: var(--primary); }
 button, input, select {
-  @apply focus-visible:ring-2 ring-offset-2 ring-sky-600;
+  @apply focus-visible:ring-2 ring-offset-2;
 }
 
 /* Components */
