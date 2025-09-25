@@ -10,7 +10,7 @@ function Section({ title, children }: { title:string; children: React.ReactNode 
   return (
     <section className="mb-6 rounded-lg border border-slate-200 bg-white shadow-sm">
       <header className="flex items-center justify-between px-4 py-3 border-b">
-        <h2 className="text-lg">{title}</h2>
+        <h2 className="text-lg font-normal">{title}</h2>
         <button className="text-sm underline" onClick={()=>setOpen(o=>!o)}>{open ? "Collapse" : "Expand"}</button>
       </header>
       {open && <div className="p-4">{children}</div>}
@@ -98,7 +98,7 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl mb-2">Admin</h1>
+      <h1 className="text-2xl font-normal mb-2">Admin</h1>
 
       <Section title="Users">
         <div className="grid md:grid-cols-3 gap-3">
@@ -115,8 +115,8 @@ export default function AdminPage() {
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead><tr className="text-left border-b">
-              <th className="py-2 pr-4">Email</th><th className="py-2 pr-4">Name</th><th className="py-2 pr-4">Role</th><th className="py-2 pr-4">Actions</th>
+            <thead><tr className="text-left border-b font-normal">
+              <th className="py-2 pr-4 font-normal">Email</th><th className="py-2 pr-4 font-normal">Name</th><th className="py-2 pr-4 font-normal">Role</th><th className="py-2 pr-4 font-normal">Actions</th>
             </tr></thead>
             <tbody>
               {users.map(u=>(
@@ -142,11 +142,11 @@ export default function AdminPage() {
 
         {showFieldsEditor && (
           <div className="mb-6 rounded border p-3">
-            <h3 className="mb-2">Fields for "{activeSlug}"</h3>
+            <h3 className="font-normal mb-2">Fields for "{activeSlug}"</h3>
             <div className="overflow-x-auto mb-3">
               <table className="min-w-full text-sm">
-                <thead><tr className="text-left border-b">
-                  <th className="py-2 pr-4">Label</th><th className="py-2 pr-4">Key</th><th className="py-2 pr-4">Type</th><th className="py-2 pr-4">Required</th><th className="py-2 pr-4">Order</th><th className="py-2 pr-4">Actions</th>
+                <thead><tr className="text-left border-b font-normal">
+                  <th className="py-2 pr-4 font-normal">Label</th><th className="py-2 pr-4 font-normal">Key</th><th className="py-2 pr-4 font-normal">Type</th><th className="py-2 pr-4 font-normal">Required</th><th className="py-2 pr-4 font-normal">Order</th><th className="py-2 pr-4 font-normal">Actions</th>
                 </tr></thead>
                 <tbody>
                   {fields.map(f=>(
@@ -180,7 +180,7 @@ export default function AdminPage() {
         )}
 
         <div className="rounded border p-3">
-          <h3 className="mb-3">Records — {activeSlug}</h3>
+          <h3 className="font-normal mb-3">Records — {activeSlug}</h3>
           <div className="grid md:grid-cols-3 gap-2 mb-3">
             {fields.map(f => (
               <TextInput key={f.id} placeholder={f.label} value={rDraft[f.key] ?? ""} onChange={e=>setRDraft({ ...rDraft, [f.key]: e.target.value })} />
@@ -191,9 +191,9 @@ export default function AdminPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead><tr className="text-left border-b">
-                {fields.map(f => <th key={f.id} className="py-2 pr-4">{f.label}</th>)}
-                <th className="py-2 pr-4">Created</th>
+              <thead><tr className="text-left border-b font-normal">
+                {fields.map(f => <th key={f.id} className="py-2 pr-4 font-normal">{f.label}</th>)}
+                <th className="py-2 pr-4 font-normal">Created</th>
               </tr></thead>
               <tbody>
                 {records.map(r=>(
