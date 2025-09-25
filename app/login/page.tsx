@@ -34,11 +34,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md p-6">
-      <h1 className="text-2xl mb-4">Log in</h1>
+    <div className="max-w-md mx-auto">
+      <h1 className="text-2xl font-normal mb-4">Log in</h1>
       <form onSubmit={onSubmit} className="space-y-3">
         <input
-          className="w-full border rounded p-2"
+          className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
           type="email"
           placeholder="Email"
           value={email}
@@ -46,7 +46,7 @@ export default function LoginPage() {
           required
         />
         <input
-          className="w-full border rounded p-2"
+          className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
           type="password"
           placeholder="Password"
           value={password}
@@ -54,7 +54,7 @@ export default function LoginPage() {
           required
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button disabled={loading} className="w-full rounded px-4 py-2 border bg-black text-white disabled:opacity-60">
+        <button disabled={loading} className="w-full rounded-md px-4 py-2 text-sm border bg-black text-white hover:bg-slate-800 disabled:opacity-60 transition-colors">
           {loading ? "Signing in..." : "Sign in"}
         </button>
       </form>
