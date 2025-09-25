@@ -7,7 +7,10 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "create-admin": "node scripts/create-admin.mjs"
+    "create-admin": "node scripts/create-admin.mjs",
+    "prisma:migrate": "prisma migrate dev --name init_collections",
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "seed": "npm run prisma:migrate && npm run prisma:seed"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
@@ -29,6 +32,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }
