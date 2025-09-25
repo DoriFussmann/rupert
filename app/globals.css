@@ -18,7 +18,12 @@ button, input, select {
 
 /* Components */
 @layer components {
-  .nb-container { @apply mx-auto max-w-[1120px] px-6; }
+  .nb-container { 
+    margin: 0 auto;
+    max-width: 1120px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
 
   .nb-card { @apply rounded-lg border border-slate-200 bg-white shadow-sm; }
   .nb-card-header { @apply flex items-center justify-between px-4 py-3 border-b border-slate-200; }
