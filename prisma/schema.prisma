@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum FieldType {
+  text
+  richtext
+  json
+  boolean
+  number
+  image
+  date
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -32,7 +42,7 @@ model Field {
   collectionId String
   label        String
   key          String
-  type         String     // "text" | "number" | "image" | "json" | "date"
+  type         FieldType
   required     Boolean    @default(false)
   options      Json?
   order        Int        @default(0)

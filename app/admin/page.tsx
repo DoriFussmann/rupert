@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import StructureEditor from "./collections/[slug]/records/[id]/StructureEditor";
 
 type User = { id:string; email:string; name:string|null; role:string; createdAt:string };
 type Field = { id:string; label:string; key:string; type:string; required:boolean; order:number };
@@ -10,8 +12,20 @@ function Section({ title, children }: { title:string; children: React.ReactNode 
   return (
     <section className="nb-card mb-6">
       <header className="nb-card-header">
-        <h2 className="nb-card-title">{title}</h2>
-        <button className="text-sm underline" onClick={()=>setOpen(o=>!o)}>{open ? "Collapse" : "Expand"}</button>
+        <button 
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-2 text-left w-full hover:text-gray-600 transition-colors"
+        >
+          <svg 
+            className={`w-4 h-4 transform transition-transform ${open ? 'rotate-90' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          <h2 className="nb-card-title">{title}</h2>
+        </button>
       </header>
       {open && <div className="nb-card-body">{children}</div>}
     </section>
@@ -35,28 +49,54 @@ async function apiJson(url: string, init?: RequestInit) {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
+  
   // USERS
   const [users, setUsers] = useState<User[]>([]);
   const [uEmail, setUEmail] = useState(""); const [uName, setUName] = useState(""); const [uRole, setURole] = useState("user"); const [uPass, setUPass] = useState("");
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // COLLECTIONS
-  const [activeSlug, setActiveSlug] = useState<"advisors"|"structures">("advisors");
-  const [fields, setFields] = useState<Field[]>([]);
-  const [records, setRecords] = useState<RecordT[]>([]);
-  const [rDraft, setRDraft] = useState<Record<string, unknown>>({});
-  const [showFieldsEditor, setShowFieldsEditor] = useState(false);
-  const [fDraft, setFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
+  // ADVISORS COLLECTION
+  const [advisorFields, setAdvisorFields] = useState<Field[]>([]);
+  const [advisorRecords, setAdvisorRecords] = useState<RecordT[]>([]);
+  const [advisorRDraft, setAdvisorRDraft] = useState<Record<string, unknown>>({});
+  const [advisorFDraft, setAdvisorFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
+
+  // STRUCTURES COLLECTION
+  const [structureFields, setStructureFields] = useState<Field[]>([]);
+  const [structureRecords, setStructureRecords] = useState<RecordT[]>([]);
+  const [structureRDraft, setStructureRDraft] = useState<Record<string, unknown>>({});
+  const [structureFDraft, setStructureFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
+  const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
 
   async function loadUsers() { setUsers(await apiJson("/api/admin/users")); }
-  async function loadCollection(slug: "advisors"|"structures") {
-    const f: Field[] = await apiJson(`/api/collections/${slug}/fields`);
-    setFields(f);
-    const r: RecordT[] = await apiJson(`/api/collections/${slug}/records`);
-    setRecords(r);
-    const draft: Record<string, unknown> = {}; f.forEach(x => { draft[x.key] = ""; }); setRDraft(draft);
+  
+  async function loadAdvisors() {
+    const f: Field[] = await apiJson(`/api/collections/advisors/fields`);
+    setAdvisorFields(f);
+    const r: RecordT[] = await apiJson(`/api/collections/advisors/records`);
+    setAdvisorRecords(r);
+    const draft: Record<string, unknown> = {};
+    f.forEach(x => { draft[x.key] = ""; });
+    setAdvisorRDraft(draft);
   }
-  useEffect(() => { loadUsers(); }, []);
-  useEffect(() => { loadCollection(activeSlug); }, [activeSlug]);
+
+  async function loadStructures() {
+    const f: Field[] = await apiJson(`/api/collections/structures/fields`);
+    setStructureFields(f);
+    const r: RecordT[] = await apiJson(`/api/collections/structures/records`);
+    setStructureRecords(r);
+    const draft: Record<string, unknown> = {};
+    f.forEach(x => { draft[x.key] = ""; });
+    setStructureRDraft(draft);
+  }
+
+  useEffect(() => { 
+    loadUsers(); 
+    loadAdvisors();
+    loadStructures();
+  }, []);
 
   async function createUser() {
     await apiJson("/api/admin/users", { method: "POST", body: JSON.stringify({ email: uEmail, name: uName || null, role: uRole, password: uPass }) });
@@ -76,7 +116,6 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl mb-2">Admin</h1>
 
       <Section title="Users">
         <div className="grid md:grid-cols-3 gap-3">
@@ -103,11 +142,25 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {users.map(u=>(
-                <tr key={u.id} className="border-b border-slate-100">
+                <tr 
+                  key={u.id} 
+                  onClick={() => setSelectedUser(u)}
+                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
                   <td className="nb-td">{u.email}</td>
-                  <td className="nb-td">{u.name ?? ""}</td>
+                  <td className="nb-td">{u.name ?? "No name"}</td>
                   <td className="nb-td"><span className="nb-badge">{u.role}</span></td>
-                  <td className="nb-td"><button className="text-red-600 underline" onClick={()=>deleteUser(u.id)}>Delete</button></td>
+                  <td className="nb-td">
+                    <button 
+                      className="text-red-600 underline hover:text-red-800 transition-colors" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteUser(u.id);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -115,95 +168,205 @@ export default function AdminPage() {
         </div>
       </Section>
 
-      <Section title="Collections">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-sm text-slate-600">Active:</span>
-          <button onClick={()=>setActiveSlug("advisors")} className={"nb-btn "+(activeSlug==="advisors"?"nb-btn-primary":"nb-btn-secondary")}>Advisors</button>
-          <button onClick={()=>setActiveSlug("structures")} className={"nb-btn "+(activeSlug==="structures"?"nb-btn-primary":"nb-btn-secondary")}>Structures</button>
-          <button className="text-sm underline ml-auto" onClick={()=>setShowFieldsEditor(s=>!s)}>{showFieldsEditor ? "Hide Fields" : "Modify Fields"}</button>
-        </div>
-
-        {showFieldsEditor && (
-          <div className="nb-card mb-6">
-            <div className="nb-card-body">
-              <h3 className="font-medium mb-2">Fields for "{activeSlug}"</h3>
-              <div className="overflow-x-auto mb-3">
-                <table className="nb-table">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="nb-th">Label</th>
-                      <th className="nb-th">Key</th>
-                      <th className="nb-th">Type</th>
-                      <th className="nb-th">Required</th>
-                      <th className="nb-th">Order</th>
-                      <th className="nb-th">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fields.map(f=>(
-                      <tr key={f.id} className="border-b border-slate-100">
-                        <td className="nb-td">{f.label}</td>
-                        <td className="nb-td">{f.key}</td>
-                        <td className="nb-td">{f.type}</td>
-                        <td className="nb-td">{f.required ? "Yes" : "No"}</td>
-                        <td className="nb-td">{f.order}</td>
-                        <td className="nb-td"><button className="text-red-600 underline" onClick={()=>removeField(f.id)}>Delete</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="grid md:grid-cols-5 gap-2 items-end">
-                <TextInput placeholder="Label" value={fDraft.label} onChange={e=>setFDraft({...fDraft, label:e.target.value})} />
-                <TextInput placeholder="key" value={fDraft.key} onChange={e=>setFDraft({...fDraft, key:e.target.value})} />
-                <Select value={fDraft.type} onChange={e=>setFDraft({...fDraft, type:e.target.value})}>
-                  {fieldTypes.map(t=><option key={t} value={t}>{t}</option>)}
-                </Select>
-                <Select value={String(fDraft.required)} onChange={e=>setFDraft({...fDraft, required: e.target.value==="true"})}>
-                  <option value="false">required: false</option>
-                  <option value="true">required: true</option>
-                </Select>
-                <TextInput placeholder="order" value={String(fDraft.order)} onChange={e=>setFDraft({...fDraft, order: Number(e.target.value)||0})} />
-                <div className="md:col-span-5"><button className="nb-btn nb-btn-primary" onClick={addField} disabled={!fDraft.label || !fDraft.key}>Add Field</button></div>
-              </div>
-            </div>
+      <Section title="Advisors">
+        <div className="grid md:grid-cols-3 gap-2 mb-3">
+          {advisorFields.map(f => (
+            <TextInput key={f.id} placeholder={f.label} value={advisorRDraft[f.key] ?? ""} onChange={e=>setAdvisorRDraft({ ...advisorRDraft, [f.key]: e.target.value })} />
+          ))}
+          <div className="md:col-span-3">
+            <button className="nb-btn nb-btn-primary" onClick={async () => {
+              await apiJson(`/api/collections/advisors/records`, { method: "POST", body: JSON.stringify({ data: advisorRDraft }) });
+              await loadAdvisors();
+            }}>Add Advisor</button>
           </div>
-        )}
-
-        <div className="nb-card">
-          <div className="nb-card-body">
-            <h3 className="font-medium mb-3">Records &mdash; {activeSlug}</h3>
-            <div className="grid md:grid-cols-3 gap-2 mb-3">
-              {fields.map(f => (
-                <TextInput key={f.id} placeholder={f.label} value={rDraft[f.key] ?? ""} onChange={e=>setRDraft({ ...rDraft, [f.key]: e.target.value })} />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                {advisorFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                <th className="nb-th">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {advisorRecords.map(r=>(
+                <tr key={r.id} className="border-b border-slate-100">
+                  {advisorFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                </tr>
               ))}
-              <div className="md:col-span-3">
-                <button className="nb-btn nb-btn-primary" onClick={addRecord}>Add Record</button>
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Structures">
+        <div className="grid md:grid-cols-3 gap-2 mb-3">
+          {structureFields.map(f => (
+            <TextInput key={f.id} placeholder={f.label} value={structureRDraft[f.key] ?? ""} onChange={e=>setStructureRDraft({ ...structureRDraft, [f.key]: e.target.value })} />
+          ))}
+          <div className="md:col-span-3">
+            <button className="nb-btn nb-btn-primary" onClick={async () => {
+              const newRecord = await apiJson(`/api/collections/structures/records`, { method: "POST", body: JSON.stringify({ data: structureRDraft }) });
+              setEditingStructureId(newRecord.id);
+            }}>Add Structure</button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                {structureFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                <th className="nb-th">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {structureRecords.map(r=>(
+                <tr 
+                  key={r.id} 
+                  onClick={() => setEditingStructureId(r.id)}
+                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  {structureFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          zIndex: 50
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '896px',
+            aspectRatio: '16/9',
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'
+          }}>
+            <div className="p-6 h-full flex flex-col">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-normal">User Details</h3>
+                <button 
+                  onClick={() => setSelectedUser(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="nb-table">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    {fields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                    <th className="nb-th">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map(r=>(
-                    <tr key={r.id} className="border-b border-slate-100">
-                      {fields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
-                      <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+              {/* User Details Content */}
+              <div className="flex-1 grid grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">{selectedUser.email}</div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">{selectedUser.name || "No name provided"}</div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                      <span className="nb-badge">{selectedUser.role}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
+                    <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                      {new Date(selectedUser.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex justify-end pt-6 border-t border-gray-200">
+                <button 
+                  onClick={() => setSelectedUser(null)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-      </Section>
+      {/* Structure Editor Modal */}
+      {editingStructureId && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          zIndex: 60
+        }}>
+          <div style={{
+            width: '95vw',
+            height: '90vh',
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Close Button */}
+            <button 
+              onClick={() => {
+                setEditingStructureId(null);
+                loadStructures(); // Refresh the structures list
+              }}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                zIndex: 10,
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                padding: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            {/* Structure Editor */}
+            <StructureEditor recordId={editingStructureId} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
