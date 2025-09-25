@@ -10,7 +10,7 @@ function Section({ title, children }: { title:string; children: React.ReactNode 
   return (
     <section className="mb-6 rounded-lg border border-slate-200 bg-white shadow-sm">
       <header className="flex items-center justify-between px-4 py-3 border-b">
-        <h2 className="text-lg font-medium">{title}</h2>
+        <h2 className="text-lg">{title}</h2>
         <button className="text-sm underline" onClick={()=>setOpen(o=>!o)}>{open ? "Collapse" : "Expand"}</button>
       </header>
       {open && <div className="p-4">{children}</div>}
@@ -19,10 +19,10 @@ function Section({ title, children }: { title:string; children: React.ReactNode 
 }
 
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={"w-full border rounded px-3 py-2 text-sm "+(props.className||"")} />;
+  return <input {...props} className={"w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors "+(props.className||"")} />;
 }
 function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={"w-full border rounded px-3 py-2 text-sm "+(props.className||"")} />;
+  return <select {...props} className={"w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors "+(props.className||"")} />;
 }
 function Button(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button {...props} className={"rounded px-3 py-2 text-sm border bg-black text-white disabled:opacity-60 "+(props.className||"")} />;
@@ -142,7 +142,7 @@ export default function AdminPage() {
 
         {showFieldsEditor && (
           <div className="mb-6 rounded border p-3">
-            <h3 className="font-medium mb-2">Fields for "{activeSlug}"</h3>
+            <h3 className="mb-2">Fields for "{activeSlug}"</h3>
             <div className="overflow-x-auto mb-3">
               <table className="min-w-full text-sm">
                 <thead><tr className="text-left border-b">
@@ -180,7 +180,7 @@ export default function AdminPage() {
         )}
 
         <div className="rounded border p-3">
-          <h3 className="font-medium mb-3">Records — {activeSlug}</h3>
+          <h3 className="mb-3">Records — {activeSlug}</h3>
           <div className="grid md:grid-cols-3 gap-2 mb-3">
             {fields.map(f => (
               <TextInput key={f.id} placeholder={f.label} value={rDraft[f.key] ?? ""} onChange={e=>setRDraft({ ...rDraft, [f.key]: e.target.value })} />
