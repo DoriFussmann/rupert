@@ -8,7 +8,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="bg-slate-50 text-slate-900">
         <header className="sticky top-0 z-50 backdrop-blur border-b border-slate-200 bg-white/85">
-          <div className="nb-container py-3 flex items-center justify-between">
+          <div className="mx-auto max-w-[1120px] px-6 py-3 flex items-center justify-between">
             <Link href="/" className="brand">Z2P</Link>
             <nav className="flex items-center gap-4 text-sm">
               <Link href="/">Home</Link>
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </header>
-        <main className="nb-container py-6">
+        <main className="mx-auto max-w-[1120px] px-6 py-6">
           {children}
         </main>
       </body>

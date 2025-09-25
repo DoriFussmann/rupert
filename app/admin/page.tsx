@@ -75,7 +75,7 @@ export default function AdminPage() {
   const fieldTypes = useMemo(()=>["text","number","image","json","date"], []);
 
   return (
-    <div className="w-full max-w-[1120px] mx-auto space-y-6">
+    <div className="space-y-6">
       <h1 className="text-2xl mb-2">Admin</h1>
 
       <Section title="Users">
