@@ -13,13 +13,13 @@ export async function GET(req: NextRequest) {
   };
 
   // DB check
-  let db = { ok: false as boolean, error: null as null | string };
+  const db = { ok: false as boolean, error: null as null | string };
   try {
     await prisma.$queryRaw`SELECT 1`;
     db.ok = true;
-  } catch (e: any) {
+  } catch (e: unknown) {
     db.ok = false;
-    db.error = e?.message || "DB error";
+    db.error = e instanceof Error ? e.message : "DB error";
   }
 
   // Auth check (cookie is optional)
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get("auth-token")?.value || req.cookies.get("auth")?.value;
   if (token) {
     try {
-      const { payload }: any = await jwtVerify(token, secret);
+      const { payload } = await jwtVerify(token, secret);
       auth = { authenticated: true, email: payload?.email ?? null, role: payload?.role ?? null };
     } catch {
       auth = { authenticated: false, email: null, role: null };

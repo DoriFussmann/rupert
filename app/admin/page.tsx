@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type User = { id:string; email:string; name:string|null; role:string; createdAt:string };
 type Field = { id:string; label:string; key:string; type:string; required:boolean; order:number };
-type RecordT = { id:string; data:any; createdAt:string };
+type RecordT = { id:string; data:Record<string, unknown>; createdAt:string };
 
 function Section({ title, children }: { title:string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
@@ -43,7 +43,7 @@ export default function AdminPage() {
   const [activeSlug, setActiveSlug] = useState<"advisors"|"structures">("advisors");
   const [fields, setFields] = useState<Field[]>([]);
   const [records, setRecords] = useState<RecordT[]>([]);
-  const [rDraft, setRDraft] = useState<Record<string, any>>({});
+  const [rDraft, setRDraft] = useState<Record<string, unknown>>({});
   const [showFieldsEditor, setShowFieldsEditor] = useState(false);
   const [fDraft, setFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
 
@@ -53,7 +53,7 @@ export default function AdminPage() {
     setFields(f);
     const r: RecordT[] = await apiJson(`/api/collections/${slug}/records`);
     setRecords(r);
-    const draft: Record<string, any> = {}; f.forEach(x => { draft[x.key] = ""; }); setRDraft(draft);
+    const draft: Record<string, unknown> = {}; f.forEach(x => { draft[x.key] = ""; }); setRDraft(draft);
   }
   useEffect(() => { loadUsers(); }, []);
   useEffect(() => { loadCollection(activeSlug); }, [activeSlug]);
@@ -173,7 +173,7 @@ export default function AdminPage() {
 
         <div className="nb-card">
           <div className="nb-card-body">
-            <h3 className="font-medium mb-3">Records — {activeSlug}</h3>
+            <h3 className="font-medium mb-3">Records &mdash; {activeSlug}</h3>
             <div className="grid md:grid-cols-3 gap-2 mb-3">
               {fields.map(f => (
                 <TextInput key={f.id} placeholder={f.label} value={rDraft[f.key] ?? ""} onChange={e=>setRDraft({ ...rDraft, [f.key]: e.target.value })} />

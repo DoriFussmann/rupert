@@ -5,7 +5,7 @@ type Ctx = { params: { id: string } };
 
 export async function PUT(req: Request, { params }: Ctx) {
   const body = await req.json().catch(() => ({}));
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   if (typeof body.name !== "undefined") data.name = body.name === null ? null : String(body.name);
   if (typeof body.role !== "undefined") data.role = String(body.role);
   if (typeof body.password === "string" && body.password.length > 0) {
