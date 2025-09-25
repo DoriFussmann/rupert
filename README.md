@@ -56,3 +56,21 @@ npm run dev
 * Collections are predefined & **read-only** (no create/rename/delete).
 * Admin dashboard lets you CRUD Users, Fields, and Records.
 * Cookie: HttpOnly JWT used to guard `/admin`.
+
+## ✅ Done Criteria
+- Admin shows **Users**, **Advisors**, **Structures** panels (no collection create/select anywhere).
+- Collections API `POST/PUT/DELETE` return **405**; Fields & Records support **CRUD** (writes require auth).
+- JWT auth protects `/admin`, all `/api/admin/*`, and **non-GET** on `/api/collections/*/(fields|records)`.
+- UI matches spec: sticky header, ~1120px container, clean cards/tables/buttons.
+- Deployed on Vercel with working `/login`, `/admin`, `/api/health`, and `/api/selftest`.
+
+## 🔎 Quick Verify (local or Vercel)
+- GET `/api/health` → `{ ok: true, time }`
+- GET `/api/selftest` → `ok: true` (when env + DB ok)
+- While **logged out**:
+  - `/admin` → redirect to `/login`
+  - `POST /api/collections/advisors/records` → **401**
+  - `GET /api/collections` → **200**
+- While **logged in**:
+  - `/admin` → loads dashboard
+  - `/api/admin/users` → **200**
