@@ -4,7 +4,7 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'fallback-secret-key'
 )
 
-export async function signToken(payload: Record<string, any>) {
+export async function signToken(payload: Record<string, unknown>) {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -16,7 +16,7 @@ export async function verifyToken(token: string) {
   try {
     const { payload } = await jwtVerify(token, secret)
     return payload
-  } catch (error) {
+  } catch {
     throw new Error('Invalid token')
   }
 }

@@ -12,7 +12,7 @@ export async function GET() {
       database: 'connected',
       version: process.env.npm_package_version || '0.1.0'
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         status: 'unhealthy',

@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       { success: false, message: 'Invalid credentials' },
       { status: 401 }
     )
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, message: 'Authentication failed' },
       { status: 500 }
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       user: payload,
       message: 'Token is valid' 
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, message: 'Invalid token' },
       { status: 401 }
