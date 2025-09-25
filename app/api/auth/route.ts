@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { signToken, verifyToken } from '../../lib/auth'
+import { signJWT, verifyJWT } from '../../lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
     // TODO: Implement actual authentication logic
     if (email && password) {
-      const token = await signToken({ email, userId: '1' })
+      const token = await signJWT({ email, userId: '1' })
       
       return NextResponse.json({ 
         success: true, 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const payload = await verifyToken(token)
+    const payload = await verifyJWT(token)
     
     return NextResponse.json({ 
       success: true, 
