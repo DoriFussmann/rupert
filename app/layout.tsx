@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata = { title: "Starter", description: "Admin CMS baseline" };
+export const metadata = { title: "Rupert", description: "Strategy & FP&A starter (Next.js + Prisma + Neon)" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} bg-slate-50 text-slate-900`}>
         <header className="sticky top-0 z-50 backdrop-blur border-b border-slate-200 bg-white/85">
           <div className="nb-container py-3 flex items-center justify-between">
-            <Link href="/" className="brand">Z2P</Link>
+            <Link href="/" className="brand">Rupert</Link>
             
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-4 text-sm">
