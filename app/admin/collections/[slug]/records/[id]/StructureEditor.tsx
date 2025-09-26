@@ -55,6 +55,18 @@ export default function StructureEditor({ recordId }: Props) {
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [treeOpen, setTreeOpen] = useState(false);
 
+  // Copy to clipboard function
+  const copyToClipboard = async (content: any, type: string) => {
+    try {
+      const text = JSON.stringify(content, null, 2);
+      await navigator.clipboard.writeText(text);
+      // You could add a toast notification here if desired
+      console.log(`${type} copied to clipboard`);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  };
+
   // Load record data
   useEffect(() => {
     loadRecord();
@@ -388,20 +400,40 @@ export default function StructureEditor({ recordId }: Props) {
               {/* Collapsible Outline */}
               {savedCompileResult.outline && (
                 <div className="border border-gray-200 rounded-sm">
-                  <button
-                    onClick={() => setOutlineOpen(!outlineOpen)}
-                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
-                  >
-                    <span className="text-sm font-normal">Outline</span>
-                    <svg 
-                      className={`w-4 h-4 transform transition-transform ${outlineOpen ? 'rotate-90' : ''}`}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
+                  <div className="relative">
+                    <button
+                      onClick={() => setOutlineOpen(!outlineOpen)}
+                      className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
+                      <span className="text-sm font-normal">Outline</span>
+                      <svg 
+                        className={`w-4 h-4 transform transition-transform ${outlineOpen ? 'rotate-90' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    {/* Copy Icon */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(savedCompileResult.outline, 'Outline');
+                      }}
+                      className="absolute top-2 right-10 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                      title="Copy outline to clipboard"
+                    >
+                      <svg 
+                        className="w-4 h-4"
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
                   {outlineOpen && (
                     <div className="border-t border-gray-200 p-3">
                       <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto font-mono">
@@ -415,20 +447,40 @@ export default function StructureEditor({ recordId }: Props) {
               {/* Collapsible Compiled Tree */}
               {savedCompileResult.tree && (
                 <div className="border border-gray-200 rounded-sm">
-                  <button
-                    onClick={() => setTreeOpen(!treeOpen)}
-                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
-                  >
-                    <span className="text-sm font-normal">Compiled Tree</span>
-                    <svg 
-                      className={`w-4 h-4 transform transition-transform ${treeOpen ? 'rotate-90' : ''}`}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
+                  <div className="relative">
+                    <button
+                      onClick={() => setTreeOpen(!treeOpen)}
+                      className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
+                      <span className="text-sm font-normal">Compiled Tree</span>
+                      <svg 
+                        className={`w-4 h-4 transform transition-transform ${treeOpen ? 'rotate-90' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    {/* Copy Icon */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(savedCompileResult.tree, 'Compiled Tree');
+                      }}
+                      className="absolute top-2 right-10 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                      title="Copy compiled tree to clipboard"
+                    >
+                      <svg 
+                        className="w-4 h-4"
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
                   {treeOpen && (
                     <div className="border-t border-gray-200 p-3">
                       <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto font-mono">

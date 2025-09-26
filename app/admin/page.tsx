@@ -176,6 +176,16 @@ export default function AdminPage() {
     loadCompaniesList();
   }, []);
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (selectedTask) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = 'unset';
+      };
+    }
+  }, [selectedTask]);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -403,141 +413,6 @@ export default function AdminPage() {
         </div>
       </Section>
 
-      <Section title="Advisors">
-        <div className="grid md:grid-cols-3 gap-2 mb-3">
-          {advisorFields.map(f => (
-            <TextInput key={f.id} placeholder={f.label} value={advisorRDraft[f.key] ?? ""} onChange={e=>setAdvisorRDraft({ ...advisorRDraft, [f.key]: e.target.value })} />
-          ))}
-          <div className="md:col-span-3">
-            <button className="nb-btn nb-btn-primary" onClick={async () => {
-              await apiJson(`/api/collections/advisors/records`, { method: "POST", body: JSON.stringify({ data: advisorRDraft }) });
-              await loadAdvisors();
-            }}>Add Advisor</button>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="nb-table">
-            <thead>
-              <tr className="border-b border-slate-200">
-                {advisorFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                <th className="nb-th">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {advisorRecords.map(r=>(
-                <tr 
-                  key={r.id} 
-                  onClick={() => setSelectedAdvisor(r)}
-                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  {advisorFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
-                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
-      <Section title="Structures">
-        <div className="grid md:grid-cols-3 gap-2 mb-3">
-          {structureFields.map(f => (
-            <TextInput key={f.id} placeholder={f.label} value={structureRDraft[f.key] ?? ""} onChange={e=>setStructureRDraft({ ...structureRDraft, [f.key]: e.target.value })} />
-          ))}
-          <div className="md:col-span-3">
-            <button className="nb-btn nb-btn-primary" onClick={async () => {
-              const newRecord = await apiJson(`/api/collections/structures/records`, { method: "POST", body: JSON.stringify({ data: structureRDraft }) });
-              setEditingStructureId(newRecord.id);
-            }}>Add Structure</button>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-                 <table className="nb-table">
-                   <thead>
-                     <tr className="border-b border-slate-200">
-                       {structureFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                       <th className="nb-th">Created</th>
-                       <th className="nb-th">Actions</th>
-                     </tr>
-                   </thead>
-            <tbody>
-              {structureRecords.map(r=>(
-                <tr 
-                  key={r.id} 
-                  onClick={() => setEditingStructureId(r.id)}
-                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                     {structureFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
-                     <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
-                     <td className="nb-td">
-                       <button 
-                         className="text-red-600 underline hover:text-red-800" 
-                         onClick={(e) => {
-                           e.stopPropagation(); // Prevent row click from opening editor
-                           deleteStructureRecord(r.id);
-                         }}
-                       >
-                         Delete
-                       </button>
-                     </td>
-                   </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
-      <Section title="Companies">
-        <div className="grid md:grid-cols-3 gap-2 mb-3">
-          {companyFields.map(f => (
-            <TextInput key={f.id} placeholder={f.label} value={companyRDraft[f.key] ?? ""} onChange={e=>setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value })} />
-          ))}
-          <div className="md:col-span-3">
-            <button className="nb-btn nb-btn-primary" onClick={async () => {
-              await apiJson(`/api/collections/companies/records`, { method: "POST", body: JSON.stringify({ data: companyRDraft }) });
-              await loadCompanies();
-            }}>Add Company</button>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="nb-table">
-            <thead>
-              <tr className="border-b border-slate-200">
-                {companyFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                <th className="nb-th">Created</th>
-                <th className="nb-th">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {companyRecords.map(r=>(
-                <tr 
-                  key={r.id} 
-                  onClick={() => setSelectedCompany(r)}
-                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  {companyFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
-                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
-                  <td className="nb-td">
-                    <button 
-                      className="text-red-600 underline hover:text-red-800" 
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        if (confirm("Are you sure you want to delete this company?")) {
-                          await apiJson(`/api/collections/companies/records/${r.id}`, { method: "DELETE" });
-                          await loadCompanies();
-                        }
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
       <Section title="Tasks">
         <div className="grid md:grid-cols-3 gap-2 mb-3">
           {taskFields.map(f => (
@@ -602,6 +477,183 @@ export default function AdminPage() {
                         if (confirm("Are you sure you want to delete this task?")) {
                           await apiJson(`/api/collections/tasks/records/${r.id}`, { method: "DELETE" });
                           await loadTasks();
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Structures">
+        <div className="grid md:grid-cols-3 gap-2 mb-3">
+          {structureFields.map(f => (
+            <TextInput key={f.id} placeholder={f.label} value={structureRDraft[f.key] ?? ""} onChange={e=>setStructureRDraft({ ...structureRDraft, [f.key]: e.target.value })} />
+          ))}
+          <div className="md:col-span-3">
+            <button className="nb-btn nb-btn-primary" onClick={async () => {
+              await apiJson(`/api/collections/structures/records`, { method: "POST", body: JSON.stringify({ data: structureRDraft }) });
+              await loadStructures();
+            }}>Add Structure</button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                {structureFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                <th className="nb-th">Created</th>
+                <th className="nb-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {structureRecords.map(r=>(
+                <tr key={r.id} className="border-b border-slate-100 hover:bg-gray-50">
+                  {structureFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                  <td className="nb-td">
+                    <button 
+                      className="text-blue-600 underline hover:text-blue-800 mr-2" 
+                      onClick={() => setEditingStructureId(r.id)}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      className="text-red-600 underline hover:text-red-800" 
+                      onClick={async () => {
+                        if (confirm("Are you sure you want to delete this structure?")) {
+                          await apiJson(`/api/collections/structures/records/${r.id}`, { method: "DELETE" });
+                          await loadStructures();
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Advisors">
+        <div className="grid md:grid-cols-3 gap-2 mb-3">
+          {advisorFields.map(f => (
+            <TextInput key={f.id} placeholder={f.label} value={advisorRDraft[f.key] ?? ""} onChange={e=>setAdvisorRDraft({ ...advisorRDraft, [f.key]: e.target.value })} />
+          ))}
+          <div className="md:col-span-3">
+            <button className="nb-btn nb-btn-primary" onClick={async () => {
+              await apiJson(`/api/collections/advisors/records`, { method: "POST", body: JSON.stringify({ data: advisorRDraft }) });
+              await loadAdvisors();
+            }}>Add Advisor</button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                {advisorFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                <th className="nb-th">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {advisorRecords.map(r=>(
+                <tr 
+                  key={r.id} 
+                  onClick={() => setSelectedAdvisor(r)}
+                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  {advisorFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Companies">
+        <div className="grid md:grid-cols-1 gap-4 mb-6">
+          {companyFields.map(f => (
+            <div key={f.id}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+              {f.type === 'json' ? (
+                <div>
+                  <textarea
+                    placeholder={`Enter JSON for ${f.label}`}
+                    value={typeof companyRDraft[f.key] === 'object' ? JSON.stringify(companyRDraft[f.key] || {}, null, 2) : String(companyRDraft[f.key] || "")}
+                    onChange={(e) => {
+                      try {
+                        const parsed = JSON.parse(e.target.value);
+                        setCompanyRDraft({ ...companyRDraft, [f.key]: parsed });
+                      } catch {
+                        setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value });
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                    rows={6}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">JSON format required</div>
+                </div>
+              ) : f.type === 'richtext' ? (
+                <textarea
+                  placeholder={`Enter ${f.label}`}
+                  value={String(companyRDraft[f.key] ?? "")}
+                  onChange={e => setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  rows={8}
+                />
+              ) : (
+                <input
+                  type="text"
+                  placeholder={f.label}
+                  value={String(companyRDraft[f.key] ?? "")}
+                  onChange={e => setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              )}
+            </div>
+          ))}
+          <div>
+            <button className="nb-btn nb-btn-primary" onClick={async () => {
+              await apiJson(`/api/collections/companies/records`, { method: "POST", body: JSON.stringify({ data: companyRDraft }) });
+              await loadCompanies();
+              setCompanyRDraft({});
+            }}>Add Company</button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                {companyFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                <th className="nb-th">Created</th>
+                <th className="nb-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {companyRecords.map(r=>(
+                <tr 
+                  key={r.id} 
+                  onClick={() => setSelectedCompany(r)}
+                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  {companyFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                  <td className="nb-td">
+                    <button 
+                      className="text-red-600 underline hover:text-red-800" 
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm("Are you sure you want to delete this company?")) {
+                          await apiJson(`/api/collections/companies/records/${r.id}`, { method: "DELETE" });
+                          await loadCompanies();
                         }
                       }}
                     >
@@ -1076,18 +1128,30 @@ export default function AdminPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
                     {editingCompany ? (
                       field.type === 'json' ? (
+                        <div>
+                          <textarea
+                            value={JSON.stringify(editCompanyData[field.key] || {}, null, 2)}
+                            onChange={(e) => {
+                              try {
+                                const parsed = JSON.parse(e.target.value);
+                                setEditCompanyData({...editCompanyData, [field.key]: parsed});
+                              } catch {
+                                setEditCompanyData({...editCompanyData, [field.key]: e.target.value});
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                            rows={8}
+                            placeholder="Enter valid JSON..."
+                          />
+                          <div className="text-xs text-gray-500 mt-1">JSON format required</div>
+                        </div>
+                      ) : field.type === 'richtext' ? (
                         <textarea
-                          value={JSON.stringify(editCompanyData[field.key] || {}, null, 2)}
-                          onChange={(e) => {
-                            try {
-                              const parsed = JSON.parse(e.target.value);
-                              setEditCompanyData({...editCompanyData, [field.key]: parsed});
-                            } catch {
-                              setEditCompanyData({...editCompanyData, [field.key]: e.target.value});
-                            }
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
-                          rows={4}
+                          value={String(editCompanyData[field.key] || "")}
+                          onChange={(e) => setEditCompanyData({...editCompanyData, [field.key]: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          rows={12}
+                          placeholder="Enter large text content..."
                         />
                       ) : (
                         <input
@@ -1100,7 +1164,11 @@ export default function AdminPage() {
                     ) : (
                       <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
                         {field.type === 'json' ? (
-                          <pre className="text-sm">{JSON.stringify(selectedCompany.data?.[field.key] || {}, null, 2)}</pre>
+                          <pre className="text-sm font-mono overflow-x-auto">{JSON.stringify(selectedCompany.data?.[field.key] || {}, null, 2)}</pre>
+                        ) : field.type === 'richtext' ? (
+                          <div className="whitespace-pre-wrap text-sm max-h-48 overflow-y-auto">
+                            {String(selectedCompany.data?.[field.key] || "No data")}
+                          </div>
                         ) : (
                           String(selectedCompany.data?.[field.key] || "No data")
                         )}
@@ -1140,18 +1208,30 @@ export default function AdminPage() {
 
       {/* Task Details Modal */}
       {selectedTask && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
-        }}>
-          <div style={{
-            width: '100%', maxWidth: '896px', aspectRatio: '16/9',
-            backgroundColor: 'white', borderRadius: '16px',
-            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'
-          }}>
-            <div className="p-6 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-6">
+        <div 
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50,
+            overflow: 'hidden'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedTask(null);
+            }
+          }}
+        >
+          <div 
+            style={{
+              width: '100%', maxWidth: '896px', maxHeight: '90vh',
+              backgroundColor: 'white', borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
+              display: 'flex', flexDirection: 'column'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 flex flex-col h-full max-h-[90vh]">
+              <div className="flex items-center justify-between mb-6 flex-shrink-0">
                 <h3 className="text-xl font-normal">{editingTask ? 'Edit Task' : 'Task Details'}</h3>
                 <div className="flex items-center gap-2">
                   {!editingTask && (
@@ -1172,7 +1252,7 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 space-y-4 overflow-y-auto min-h-0 pr-2" style={{ scrollbarWidth: 'thin' }}>
                 {taskFields.map(field => (
                   <div key={field.id}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
@@ -1208,7 +1288,7 @@ export default function AdminPage() {
                 ))}
               </div>
               {editingTask && (
-                <div className="mt-6 flex gap-2">
+                <div className="mt-6 flex gap-2 flex-shrink-0 border-t pt-4">
                   <button
                     onClick={async () => {
                       await apiJson(`/api/collections/tasks/records/${selectedTask.id}`, { 

@@ -227,7 +227,7 @@ async function seedCompaniesCollection() {
   const fields = [
     { label: "Name", key: "name", type: "text", required: true, order: 1 },
     { label: "Description", key: "description", type: "richtext", required: false, order: 2 },
-    { label: "Raw Data", key: "rawData", type: "json", required: false, order: 3 },
+    { label: "Raw Data", key: "rawData", type: "richtext", required: false, order: 3 },
     { label: "Data Map", key: "dataMap", type: "json", required: false, order: 4 },
   ];
 
