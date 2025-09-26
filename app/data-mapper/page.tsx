@@ -186,6 +186,24 @@ export default function DataMapperPage() {
     }
   }
 
+  // Copy API response to clipboard
+  async function copyApiResponse() {
+    if (!apiResult) return;
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(apiResult, null, 2));
+      alert('API response copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy API response:', err);
+      alert('Failed to copy API response to clipboard');
+    }
+  }
+
+  // Clear API results
+  function clearApiResults() {
+    setApiResult(null);
+  }
+
   async function handleApiCall() {
     if (!selectedAdvisor || !selectedTask || !selectedStructure || !selectedCompany) {
       alert('Please select an advisor, task, structure, and company before making the API call.');
@@ -223,17 +241,18 @@ export default function DataMapperPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Data Mapper</h1>
-          <p className="mt-2 text-gray-600">
-            Transform and map data between different formats and structures.
-          </p>
-        </div>
-
+      <div className="nb-container py-8">
         <div className="flex gap-8">
-          {/* Left Sidebar - 25% width (280px out of 1120px) */}
-          <div className="w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          {/* Left Content Area - Title and Selection Boxes */}
+          <div className="w-80">
+            <div className="mb-6">
+              <h1 className="text-2xl font-semibold text-gray-900">Data Mapper</h1>
+              <p className="mt-2 text-gray-600">
+                Transform and map data between different formats and structures.
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="space-y-6">
               {/* Advisor Dropdown */}
               <div>
@@ -389,12 +408,35 @@ export default function DataMapperPage() {
               </div>
             </div>
           </div>
+          </div>
 
-          {/* Right Content Area - 75% width */}
+          {/* Right Content Area - Results */}
           <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             {apiResult ? (
               <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">API Results</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">API Results</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copyApiResponse}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Copy Raw
+                    </button>
+                    <button
+                      onClick={clearApiResults}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    >
+                      <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Clear
+                    </button>
+                  </div>
+                </div>
                 {apiResult.error ? (
                   <div className="bg-red-50 border border-red-200 rounded-md p-4">
                     <div className="flex">
@@ -424,17 +466,63 @@ export default function DataMapperPage() {
                           <h3 className="text-sm font-medium text-green-800">Success</h3>
                           <div className="mt-2 text-sm text-green-700">
                             <p>API call completed successfully</p>
+                            {apiResult.result?.usage && (
+                              <p className="mt-1">
+                                Tokens used: {apiResult.result.usage.total_tokens} 
+                                (prompt: {apiResult.result.usage.prompt_tokens}, completion: {apiResult.result.usage.completion_tokens})
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
                     </div>
-                    
+
+                    {/* OpenAI Response Content */}
+                    {apiResult.result?.content && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                        <h4 className="text-sm font-medium text-blue-900 mb-3">
+                          AI Response from {apiResult.result.advisor}
+                        </h4>
+                        <div className="bg-white p-4 rounded border">
+                          <div className="whitespace-pre-wrap text-sm text-gray-800">
+                            {apiResult.result.content}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Processing Details */}
                     <div className="bg-gray-50 rounded-md p-4">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Response Data</h4>
-                      <pre className="text-sm bg-white p-3 rounded border overflow-x-auto max-h-96 overflow-y-auto font-mono">
+                      <h4 className="text-sm font-medium text-gray-900 mb-3">Processing Details</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">Task:</span>
+                          <span className="ml-2 text-gray-600">{apiResult.result?.task}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Company:</span>
+                          <span className="ml-2 text-gray-600">{apiResult.result?.company}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Model:</span>
+                          <span className="ml-2 text-gray-600">{apiResult.result?.model}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Temperature:</span>
+                          <span className="ml-2 text-gray-600">{apiResult.result?.parameters?.temperature}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Raw Response Data (Collapsible) */}
+                    <details className="bg-gray-50 rounded-md p-4">
+                      <summary className="text-sm font-medium text-gray-900 cursor-pointer hover:text-gray-700">
+                        View Raw Response Data
+                      </summary>
+                      <pre className="text-sm bg-white p-3 rounded border overflow-x-auto max-h-96 overflow-y-auto font-mono mt-3">
                         {JSON.stringify(apiResult, null, 2)}
                       </pre>
-                    </div>
+                    </details>
                   </div>
                 )}
               </div>

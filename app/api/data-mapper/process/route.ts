@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import OpenAI from 'openai';
 
 interface Payload {
   advisor: {
@@ -36,24 +37,67 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // For now, return a mock response showing the processed payload
-    // TODO: Implement actual OpenAI API integration here
-    const mockResponse = {
+    // Validate OpenAI API key
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: 'OpenAI API key not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Initialize OpenAI client
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    });
+
+    // Build the prompt from the payload
+    const systemPrompt = `You are ${payload.advisor.name}, a ${payload.advisor.role}. ${payload.advisor.prompt}`;
+    
+    const userPrompt = `
+Task: ${payload.task.name}
+Task Instructions: ${payload.task.taskPrompt}
+
+Company: ${payload.company.name}
+Raw Data: ${payload.company.rawData}
+
+Structure Outline: ${JSON.stringify(payload.structure.outline, null, 2)}
+
+Please process this company data according to the task instructions and structure outline provided.
+`;
+
+    // Make the OpenAI API call
+    const completion = await openai.chat.completions.create({
+      model: payload.parameters.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      max_tokens: payload.parameters.maxTokens,
+      temperature: payload.parameters.temperature,
+    });
+
+    const response = {
       success: true,
       timestamp: new Date().toISOString(),
       processedPayload: payload,
       result: {
-        message: "This is a mock response. OpenAI integration will be implemented here.",
-        advisor: `Using advisor: ${payload.advisor.name} (${payload.advisor.role}) with prompt: ${payload.advisor.prompt ? 'provided' : 'not provided'}`,
-        task: `Processing task: ${payload.task.name} with prompt: ${payload.task.taskPrompt ? 'provided' : 'not provided'}`,
-        structure: `Applied structure outline with ${Object.keys(payload.structure.outline || {}).length} outline elements`,
-        company: `Using company: ${payload.company.name} with raw data: ${payload.company.rawData ? 'provided' : 'not provided'}`,
-        parameters: `Model: ${payload.parameters.model}, Tokens: ${payload.parameters.maxTokens}, Temperature: ${payload.parameters.temperature}`
+        content: completion.choices[0]?.message?.content || 'No response generated',
+        usage: completion.usage,
+        model: completion.model,
+        advisor: `${payload.advisor.name} (${payload.advisor.role})`,
+        task: payload.task.name,
+        company: payload.company.name,
+        parameters: {
+          model: payload.parameters.model,
+          maxTokens: payload.parameters.maxTokens,
+          temperature: payload.parameters.temperature
+        }
       }
     };
 
     return new Response(
-      JSON.stringify(mockResponse),
+      JSON.stringify(response),
       { 
         status: 200, 
         headers: { 'Content-Type': 'application/json' } 
@@ -62,6 +106,18 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('Data mapper API error:', error);
+    
+    // Handle OpenAI API errors specifically
+    if (error instanceof Error && error.message.includes('API key')) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'OpenAI API key error',
+          details: 'Please check your OpenAI API key configuration'
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
