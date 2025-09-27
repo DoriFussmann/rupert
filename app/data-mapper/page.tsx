@@ -38,6 +38,8 @@ export default function DataMapperPage() {
 
   const [loading, setLoading] = useState(false);
   const [showPayloadModal, setShowPayloadModal] = useState(false);
+  const [showCustomPayloadModal, setShowCustomPayloadModal] = useState(false);
+  const [customPayload, setCustomPayload] = useState<string>('');
   const [apiResult, setApiResult] = useState<any>(null);
 
   // Load data on component mount
@@ -45,15 +47,15 @@ export default function DataMapperPage() {
     loadCollectionData();
   }, []);
 
-  // Prevent body scroll when payload modal is open
+  // Prevent body scroll when modals are open
   useEffect(() => {
-    if (showPayloadModal) {
+    if (showPayloadModal || showCustomPayloadModal) {
       document.body.style.overflow = 'hidden';
       return () => {
         document.body.style.overflow = 'unset';
       };
     }
-  }, [showPayloadModal]);
+  }, [showPayloadModal, showCustomPayloadModal]);
 
   async function loadCollectionData() {
     try {
@@ -239,18 +241,59 @@ export default function DataMapperPage() {
     }
   }
 
+  async function handleCustomPayloadApiCall() {
+    if (!customPayload.trim()) {
+      alert('Please enter a custom payload before making the API call.');
+      return;
+    }
+
+    let parsedPayload;
+    try {
+      parsedPayload = JSON.parse(customPayload);
+    } catch (error) {
+      alert('Invalid JSON format in custom payload. Please check your syntax.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setApiResult(null);
+      setShowCustomPayloadModal(false);
+
+      const response = await fetch('/api/data-mapper/process-custom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(parsedPayload),
+      });
+
+      if (!response.ok) {
+        try {
+          const err = await response.json();
+          const details = err?.details ? ` - ${err.details}` : '';
+          throw new Error(`Custom API call failed: ${err?.error || response.statusText}${details}`);
+        } catch {
+          throw new Error(`Custom API call failed: ${response.status} ${response.statusText}`);
+        }
+      }
+
+      const result = await response.json();
+      setApiResult(result);
+    } catch (error) {
+      console.error('Custom API call failed:', error);
+      setApiResult({ error: error instanceof Error ? error.message : 'Unknown error occurred' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="nb-container py-8">
+      <div className="nb-container pt-2 pb-8">
         <div className="flex gap-8">
           {/* Left Content Area - Title and Selection Boxes */}
           <div className="w-80">
-            <div className="mb-6">
-              <h1 className="text-2xl font-semibold text-gray-900">Data Mapper</h1>
-              <p className="mt-2 text-gray-600">
-                Transform and map data between different formats and structures.
-              </p>
-            </div>
             
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="space-y-6">
@@ -387,17 +430,23 @@ export default function DataMapperPage() {
                 </div>
               </div>
 
-              {/* Payload Preview Button */}
-              <div className="pt-4">
+              {/* Action Buttons */}
+              <div className="pt-4 space-y-3">
                 <button
                   onClick={() => setShowPayloadModal(true)}
                   disabled={!selectedAdvisor || !selectedTask || !selectedStructure || !selectedCompany}
-                  className="w-full bg-gray-600 text-white py-2 px-4 rounded-md font-medium hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-3"
+                  className="w-full bg-gray-600 text-white py-2 px-4 rounded-md font-medium hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Show Payload
                 </button>
 
-                {/* API Call Button */}
+                <button
+                  onClick={() => setShowCustomPayloadModal(true)}
+                  className="w-full bg-purple-600 text-white py-2 px-4 rounded-md font-medium hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors"
+                >
+                  New Payload
+                </button>
+
                 <button
                   onClick={handleApiCall}
                   disabled={loading || !selectedAdvisor || !selectedTask || !selectedStructure || !selectedCompany}
@@ -606,6 +655,87 @@ export default function DataMapperPage() {
                   <pre className="text-sm font-mono whitespace-pre-wrap break-words">
                     {JSON.stringify(buildPayload(), null, 2)}
                   </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Payload Modal */}
+        {showCustomPayloadModal && (
+          <div 
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50,
+              overflow: 'hidden'
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowCustomPayloadModal(false);
+              }
+            }}
+          >
+            <div 
+              style={{
+                width: '100%', maxWidth: '896px', aspectRatio: '16/9',
+                backgroundColor: 'white', borderRadius: '8px',
+                boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
+                display: 'flex', flexDirection: 'column'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 flex flex-col h-full">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6 flex-shrink-0">
+                  <h3 className="text-xl font-normal">Custom Payload</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCustomPayloadApiCall}
+                      disabled={!customPayload.trim() || loading}
+                      className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loading ? 'Processing...' : 'Send to OpenAI'}
+                    </button>
+                    <button 
+                      onClick={() => setShowCustomPayloadModal(false)} 
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 flex flex-col min-h-0">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Enter your custom JSON payload:
+                  </label>
+                  <textarea
+                    value={customPayload}
+                    onChange={(e) => setCustomPayload(e.target.value)}
+                    placeholder={`{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user", 
+      "content": "Hello, how are you?"
+    }
+  ],
+  "model": "gpt-4-turbo",
+  "max_tokens": 2000,
+  "temperature": 0.7
+}`}
+                    className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm resize-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Enter a valid JSON payload that will be sent directly to OpenAI's API
+                  </p>
                 </div>
               </div>
             </div>
