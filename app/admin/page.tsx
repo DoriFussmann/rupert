@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import NavigationHeader from "../components/NavigationHeader";
 import StructureEditor from "./collections/[slug]/records/[id]/StructureEditor";
 
 type User = { id:string; email:string; name:string|null; role:string; company:string|null; createdAt:string; pageAccess?:Record<string, boolean> };
@@ -169,12 +170,34 @@ export default function AdminPage() {
   }
 
   useEffect(() => { 
+    // Create a style element to forcefully hide the layout header
+    const styleElement = document.createElement('style');
+    styleElement.id = 'hide-layout-header';
+    styleElement.textContent = `
+      body > header {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+      }
+    `;
+    document.head.appendChild(styleElement);
+    
     loadUsers(); 
     loadAdvisors();
     loadStructures();
     loadCompanies();
     loadTasks();
     loadCompaniesList();
+    
+    return () => {
+      // Remove the style element when leaving the page
+      const styleElement = document.getElementById('hide-layout-header');
+      if (styleElement) {
+        styleElement.remove();
+      }
+    };
   }, []);
 
   // Prevent body scroll when modal is open
@@ -268,37 +291,10 @@ export default function AdminPage() {
   const fieldTypes = useMemo(()=>["text","number","image","json","date"], []);
 
   return (
-    <div className="space-y-6">
-      
-      {/* Quick Navigation */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-medium text-gray-900">Admin Dashboard</h2>
-            <p className="text-sm text-gray-600">Manage collections, users, and system data</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/data-mapper" 
-              className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Data Mapper
-            </Link>
-            <Link 
-              href="/" 
-              className="inline-flex items-center px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-md hover:bg-gray-700 transition-colors"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Home
-            </Link>
-          </div>
-        </div>
-      </div>
+    <>
+      <NavigationHeader />
+      <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
+        <div className="space-y-6">
 
       <Section title="Users" defaultOpen={true}>
         <div className="grid md:grid-cols-3 gap-3">
@@ -1346,6 +1342,8 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      </div>
+    </>
   );
 }

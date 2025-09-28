@@ -2,7 +2,7 @@ import "./globals.css";
 import Link from "next/link";
 import { Inter } from "next/font/google";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], weight: ["100","200","300","400","500","600","700","800","900"] });
 
 export const metadata = { title: "Rupert", description: "Strategy & FP&A starter (Next.js + Prisma + Neon)" };
 

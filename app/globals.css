@@ -11,8 +11,8 @@
 /* Global focus polish */
 * { outline-color: var(--primary); }
 
-/* Remove default bold styling */
-h1, h2, h3, h4, h5, h6, th, .brand {
+/* Keep some elements non-bold without overriding heading weights */
+th, .brand {
   font-weight: normal;
 }
 
