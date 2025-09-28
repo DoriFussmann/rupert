@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import NavigationHeader from "../../../../components/NavigationHeader";
+import NavigationHeader from "../../../../../components/NavigationHeader";
 import StructureEditor from "./StructureEditor";
 
 type Props = {
