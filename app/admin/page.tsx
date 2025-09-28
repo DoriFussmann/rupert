@@ -98,6 +98,14 @@ export default function AdminPage() {
   const [taskRDraft, setTaskRDraft] = useState<Record<string, unknown>>({});
   const [taskFDraft, setTaskFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
 
+  // TOOLS & PAGES COLLECTION
+  const [toolsFields, setToolsFields] = useState<Field[]>([]);
+  const [toolsRecords, setToolsRecords] = useState<RecordT[]>([]);
+  const [toolsRDraft, setToolsRDraft] = useState<Record<string, unknown>>({});
+  const [selectedTool, setSelectedTool] = useState<RecordT | null>(null);
+  const [editingTool, setEditingTool] = useState(false);
+  const [editToolData, setEditToolData] = useState<Record<string, unknown>>({});
+
   // MODAL STATES
   const [selectedAdvisor, setSelectedAdvisor] = useState<RecordT | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<RecordT | null>(null);
@@ -169,6 +177,16 @@ export default function AdminPage() {
     setTaskRDraft(draft);
   }
 
+  async function loadToolsPages() {
+    const f: Field[] = await apiJson(`/api/collections/tools-pages/fields`);
+    setToolsFields(f);
+    const r: RecordT[] = await apiJson(`/api/collections/tools-pages/records`);
+    setToolsRecords(r);
+    const draft: Record<string, unknown> = {};
+    f.forEach(x => { draft[x.key] = ""; });
+    setToolsRDraft(draft);
+  }
+
   useEffect(() => { 
     // Create a style element to forcefully hide the layout header
     const styleElement = document.createElement('style');
@@ -190,6 +208,7 @@ export default function AdminPage() {
     loadCompanies();
     loadTasks();
     loadCompaniesList();
+    loadToolsPages();
     
     return () => {
       // Remove the style element when leaving the page
@@ -510,6 +529,42 @@ export default function AdminPage() {
                       Delete
                     </button>
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Tools & Pages">
+        <div className="grid md:grid-cols-3 gap-2 mb-3">
+          {toolsFields.map(f => (
+            <TextInput key={f.id} placeholder={f.label} value={String(toolsRDraft[f.key] ?? "")} onChange={e=>setToolsRDraft({ ...toolsRDraft, [f.key]: e.target.value })} />
+          ))}
+          <div className="md:col-span-3">
+            <button className="nb-btn nb-btn-primary" onClick={async () => {
+              await apiJson(`/api/collections/tools-pages/records`, { method: "POST", body: JSON.stringify({ data: toolsRDraft }) });
+              await loadToolsPages();
+            }}>Add Item</button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                {toolsFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                <th className="nb-th">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {toolsRecords.map(r => (
+                <tr 
+                  key={r.id} 
+                  onClick={() => { setSelectedTool(r); setEditToolData(r.data || {}); setEditingTool(false); }}
+                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer"
+                >
+                  {toolsFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -1225,6 +1280,104 @@ export default function AdminPage() {
                     className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
                   >
                     Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tools & Pages Details Modal */}
+      {selectedTool && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
+        }}>
+          <div style={{
+            width: '100%', maxWidth: '896px', aspectRatio: '16/9',
+            backgroundColor: 'white', borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'
+          }}>
+            <div className="p-6 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-normal">{editingTool ? 'Edit Item' : 'Item Details'}</h3>
+                <div className="flex items-center gap-2">
+                  {!editingTool && (
+                    <button 
+                      onClick={() => {
+                        setEditToolData(selectedTool.data || {});
+                        setEditingTool(true);
+                      }}
+                      className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedTool(null)} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto">
+                {toolsFields.map(field => (
+                  <div key={field.id}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                    {editingTool ? (
+                      <input
+                        type="text"
+                        value={String(editToolData[field.key] || "")}
+                        onChange={(e) => setEditToolData({...editToolData, [field.key]: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    ) : (
+                      <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                        {String(selectedTool.data?.[field.key] || 'No data')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {editingTool && (
+                <div className="mt-6 flex gap-2">
+                  <button
+                    onClick={async () => {
+                      await apiJson(`/api/collections/tools-pages/records/${selectedTool.id}`, { 
+                        method: 'PUT', 
+                        body: JSON.stringify({ data: editToolData }) 
+                      });
+                      setEditingTool(false);
+                      await loadToolsPages();
+                      setSelectedTool({...selectedTool, data: editToolData});
+                    }}
+                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setEditingTool(false)}
+                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              {!editingTool && (
+                <div className="mt-6 flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (confirm('Delete this item?')) {
+                        await apiJson(`/api/collections/tools-pages/records/${selectedTool.id}`, { method: 'DELETE' });
+                        setSelectedTool(null);
+                        await loadToolsPages();
+                      }
+                    }}
+                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  >
+                    Delete
                   </button>
                 </div>
               )}

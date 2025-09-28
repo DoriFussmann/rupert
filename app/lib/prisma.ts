@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+config({ override: true });
 import { PrismaClient } from "@prisma/client";
 
 const g = global as typeof global & {

@@ -1,9 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import NavigationHeader from "../components/NavigationHeader";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     // Create a style element to forcefully hide the layout header
     const styleElement = document.createElement('style');
@@ -64,7 +69,28 @@ export default function LoginPage() {
                 {isSignUp ? "Create Account" : "Welcome Back"}
               </h2>
               
-              <form className="space-y-4">
+              <form
+                className="space-y-4"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (isSignUp) return; // sign-up not implemented here
+                  try {
+                    setError(null);
+                    const res = await fetch("/api/auth/login", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email, password })
+                    });
+                    if (!res.ok) {
+                      const body = await res.json().catch(() => ({ error: "Login failed" }));
+                      throw new Error(body.error || "Login failed");
+                    }
+                    router.push("/admin");
+                  } catch (err: any) {
+                    setError(err?.message || "Login failed");
+                  }
+                }}
+              >
                 {/* Email Field */}
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
@@ -75,6 +101,8 @@ export default function LoginPage() {
                     type="email"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="your@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
 
@@ -103,6 +131,8 @@ export default function LoginPage() {
                     type="password"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
 
@@ -128,6 +158,18 @@ export default function LoginPage() {
                 >
                   {isSignUp ? "Create Account" : "Sign In"}
                 </button>
+
+                {error && (
+                  <div className="text-sm text-red-600 mt-2">{error}</div>
+                )}
+
+                {/* Test credentials for quick copy/paste */}
+                {!isSignUp && (
+                  <div className="mt-3 text-sm text-gray-600">
+                    <div className="font-mono select-all">admin@example.com</div>
+                    <div className="font-mono select-all">admin123</div>
+                  </div>
+                )}
               </form>
             </div>
           </div>

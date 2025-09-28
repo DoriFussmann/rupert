@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+config({ override: true });
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -7,6 +9,7 @@ const COLLECTIONS = [
   { name: "Structures", slug: "structures" },
   { name: "Companies", slug: "companies" },
   { name: "Tasks", slug: "tasks" },
+  { name: "Tools & Pages", slug: "tools-pages" },
 ] as const;
 
 async function ensureCollections() {
@@ -220,6 +223,42 @@ async function seedStructureTemplates() {
   console.log(`Structure templates: created ${created}, updated ${updated}`);
 }
 
+async function seedToolsPagesCollection() {
+  const tools = await prisma.collection.findUnique({ where: { slug: "tools-pages" } });
+  if (!tools) return;
+
+  const fields = [
+    { label: "Name", key: "name", type: "text", required: true, order: 1 },
+    { label: "How it works 1", key: "howItWorks1", type: "text", required: false, order: 2 },
+    { label: "How it works 2", key: "howItWorks2", type: "text", required: false, order: 3 },
+    { label: "How it works 3", key: "howItWorks3", type: "text", required: false, order: 4 },
+    { label: "How it works 4", key: "howItWorks4", type: "text", required: false, order: 5 },
+  ];
+
+  for (const f of fields) {
+    await prisma.field.upsert({
+      where: { collectionId_key: { collectionId: tools.id, key: f.key } },
+      update: { ...f },
+      create: { ...f, collectionId: tools.id },
+    });
+  }
+
+  // Seed one record per page (names only)
+  const pages = [
+    { name: "Home" },
+    { name: "Login" },
+    { name: "Admin" },
+    { name: "Design Master" },
+    { name: "Data Mapper" },
+  ];
+  const existing = await prisma.record.findFirst({ where: { collectionId: tools.id } });
+  if (!existing) {
+    await prisma.record.createMany({
+      data: pages.map(p => ({ collectionId: tools.id, data: p })),
+    });
+  }
+}
+
 async function seedCompaniesCollection() {
   const companies = await prisma.collection.findUnique({ where: { slug: "companies" } });
   if (!companies) return;
@@ -265,6 +304,7 @@ async function main() {
   await seedStructureTemplates();
   await seedCompaniesCollection();
   await seedTasksCollection();
+  await seedToolsPagesCollection();
 }
 
 main()
