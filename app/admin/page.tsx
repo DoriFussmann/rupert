@@ -102,6 +102,7 @@ export default function AdminPage() {
   const [toolsFields, setToolsFields] = useState<Field[]>([]);
   const [toolsRecords, setToolsRecords] = useState<RecordT[]>([]);
   const [toolsRDraft, setToolsRDraft] = useState<Record<string, unknown>>({});
+  const [advisorsForDropdown, setAdvisorsForDropdown] = useState<{id:string; name:string}[]>([]);
   const [selectedTool, setSelectedTool] = useState<RecordT | null>(null);
   const [editingTool, setEditingTool] = useState(false);
   const [editToolData, setEditToolData] = useState<Record<string, unknown>>({});
@@ -209,6 +210,11 @@ export default function AdminPage() {
     loadTasks();
     loadCompaniesList();
     loadToolsPages();
+    // fetch advisors for dropdown
+    (async () => {
+      const records: RecordT[] = await apiJson(`/api/collections/advisors/records`);
+      setAdvisorsForDropdown(records.map(r => ({ id: r.id, name: String(r.data?.name || 'Unnamed Advisor') })));
+    })();
     
     return () => {
       // Remove the style element when leaving the page
@@ -539,7 +545,21 @@ export default function AdminPage() {
       <Section title="Tools & Pages">
         <div className="grid md:grid-cols-3 gap-2 mb-3">
           {toolsFields.map(f => (
-            <TextInput key={f.id} placeholder={f.label} value={String(toolsRDraft[f.key] ?? "")} onChange={e=>setToolsRDraft({ ...toolsRDraft, [f.key]: e.target.value })} />
+            f.key === 'mainAdvisorId' ? (
+              <div key={f.id} className="relative">
+                <Select
+                  value={String(toolsRDraft[f.key] ?? "")}
+                  onChange={e=>setToolsRDraft({ ...toolsRDraft, [f.key]: e.target.value })}
+                >
+                  <option value="">Select Main Advisor</option>
+                  {advisorsForDropdown.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </Select>
+              </div>
+            ) : (
+              <TextInput key={f.id} placeholder={f.label} value={String(toolsRDraft[f.key] ?? "")} onChange={e=>setToolsRDraft({ ...toolsRDraft, [f.key]: e.target.value })} />
+            )
           ))}
           <div className="md:col-span-3">
             <button className="nb-btn nb-btn-primary" onClick={async () => {
@@ -1327,15 +1347,32 @@ export default function AdminPage() {
                   <div key={field.id}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
                     {editingTool ? (
-                      <input
-                        type="text"
-                        value={String(editToolData[field.key] || "")}
-                        onChange={(e) => setEditToolData({...editToolData, [field.key]: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      />
+                      field.key === 'mainAdvisorId' ? (
+                        <select
+                          className="nb-select"
+                          value={String(editToolData[field.key] ?? '')}
+                          onChange={(e)=> setEditToolData({ ...editToolData, [field.key]: e.target.value })}
+                        >
+                          <option value="">Select Main Advisor</option>
+                          {advisorsForDropdown.map(a => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={String(editToolData[field.key] || "")}
+                          onChange={(e) => setEditToolData({...editToolData, [field.key]: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      )
                     ) : (
                       <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                        {String(selectedTool.data?.[field.key] || 'No data')}
+                        {field.key === 'mainAdvisorId' ? (
+                          advisorsForDropdown.find(a => a.id === String(selectedTool.data?.[field.key] || ''))?.name || 'No data'
+                        ) : (
+                          String(selectedTool.data?.[field.key] || 'No data')
+                        )}
                       </div>
                     )}
                   </div>

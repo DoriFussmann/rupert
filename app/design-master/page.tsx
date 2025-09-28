@@ -5,6 +5,7 @@ import NavigationHeader from "../components/NavigationHeader";
 export default function DesignMaster() {
   const [outputsExpanded, setOutputsExpanded] = useState(false);
   const [inputsCollapsed, setInputsCollapsed] = useState(false);
+  const [advisorImageUrl, setAdvisorImageUrl] = useState<string | null>(null);
   useEffect(() => {
     // Create a style element to forcefully hide the layout header
     const styleElement = document.createElement('style');
@@ -27,6 +28,32 @@ export default function DesignMaster() {
         styleElement.remove();
       }
     };
+  }, []);
+
+  // Load advisor image assigned to this page via Tools & Pages
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const toolsRes = await fetch('/api/collections/tools-pages/records', { headers: { 'Content-Type': 'application/json' } });
+        if (!toolsRes.ok) return;
+        const records: Array<{ id: string; data?: Record<string, unknown> }> = await toolsRes.json();
+        const page = records.find(r => String((r.data as any)?.name || '').toLowerCase() === 'design master');
+        const advisorId = page?.data ? (page.data as any).mainAdvisorId : null;
+        if (!advisorId) return;
+        const advRes = await fetch(`/api/collections/advisors/records/${advisorId}`, { headers: { 'Content-Type': 'application/json' } });
+        if (!advRes.ok) return;
+        const advisor = await advRes.json();
+        const raw = advisor?.data?.image ? String(advisor.data.image) : '';
+        const img = raw
+          ? (/^https?:\/\//i.test(raw) || raw.startsWith('/') ? raw : `/uploads/${raw}`)
+          : '';
+        if (!cancelled) setAdvisorImageUrl(img || null);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -59,6 +86,16 @@ export default function DesignMaster() {
               </button>
               {!inputsCollapsed && (
               <div className="p-4">
+                {/* Image placeholder at top */}
+                <div className="mb-4 w-full h-64 bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
+                  {advisorImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={advisorImageUrl} alt="Advisor" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>Image Placeholder</span>
+                  )}
+                </div>
+
                 {/* Dropdown Menu - identical to header Menu button */}
               <div className="relative group">
                   <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
@@ -91,6 +128,7 @@ export default function DesignMaster() {
                 >
                   Button
                 </button>
+
               </div>
               )}
             </div>

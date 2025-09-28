@@ -229,10 +229,11 @@ async function seedToolsPagesCollection() {
 
   const fields = [
     { label: "Name", key: "name", type: "text", required: true, order: 1 },
-    { label: "How it works 1", key: "howItWorks1", type: "text", required: false, order: 2 },
-    { label: "How it works 2", key: "howItWorks2", type: "text", required: false, order: 3 },
-    { label: "How it works 3", key: "howItWorks3", type: "text", required: false, order: 4 },
-    { label: "How it works 4", key: "howItWorks4", type: "text", required: false, order: 5 },
+    { label: "Main Advisor", key: "mainAdvisorId", type: "text", required: false, order: 2 },
+    { label: "How it works 1", key: "howItWorks1", type: "text", required: false, order: 3 },
+    { label: "How it works 2", key: "howItWorks2", type: "text", required: false, order: 4 },
+    { label: "How it works 3", key: "howItWorks3", type: "text", required: false, order: 5 },
+    { label: "How it works 4", key: "howItWorks4", type: "text", required: false, order: 6 },
   ];
 
   for (const f of fields) {
