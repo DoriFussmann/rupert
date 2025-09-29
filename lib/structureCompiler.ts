@@ -36,9 +36,17 @@ export interface CompiledTopic {
   subtopics: CompiledSubtopic[];
 }
 
+export interface CompiledStructure {
+  topics: CompiledTopic[];
+  unallocated: { id: string; text: string }[];
+  unanswered: { id: string; questionId: string; text: string }[];
+}
+
 export interface CompileResult {
+  topics: CompiledTopic[];
+  unallocated: { id: string; text: string }[];
+  unanswered: { id: string; questionId: string; text: string }[];
   outline: Record<string, string>;
-  tree: CompiledTopic[];
   warnings: string[];
 }
 
@@ -49,6 +57,7 @@ function generateId(prefix: string, index: number): string {
 function trimText(text: string): string {
   return text?.trim() || '';
 }
+
 
 export function compileStructureTree(input: InputStructure | InputTopic[] | any): CompileResult {
   const warnings: string[] = [];
@@ -132,8 +141,10 @@ export function compileStructureTree(input: InputStructure | InputTopic[] | any)
   });
 
   return {
+    topics: tree,
+    unallocated: [],
+    unanswered: [],
     outline,
-    tree,
     warnings
   };
 }

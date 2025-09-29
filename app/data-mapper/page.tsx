@@ -29,6 +29,9 @@ export default function DataMapperPage() {
   const [fullPayloadError, setFullPayloadError] = useState<string | null>(null);
   const [fullPayloadDebugInfo, setFullPayloadDebugInfo] = useState<any>(null);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [parsedBusinessPlan, setParsedBusinessPlan] = useState<any>(null);
+  const [showUnallocated, setShowUnallocated] = useState(false);
+  const [showUnanswered, setShowUnanswered] = useState(false);
 
   const payload = useMemo(() => {
     const task = tasks.find(t => t.id === selectedTaskId);
@@ -126,6 +129,116 @@ export default function DataMapperPage() {
     const defaults = MODEL_OPTIONS[provider] || [];
     if (!defaults.includes(model)) setModel(defaults[0] || "");
   }, [provider]);
+
+  // Parse AI response into structured format
+  const parseBusinessPlanResponse = (content: string) => {
+    try {
+      const sections = {
+        businessPlan: [],
+        unallocated: [],
+        unanswered: []
+      };
+
+      const lines = content.split('\n');
+      let currentSection = '';
+      let currentTopic = null;
+      let currentSubtopic = null;
+
+      for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+
+        // Detect sections
+        if (line.includes('=== BUSINESS PLAN ===')) {
+          currentSection = 'businessPlan';
+          continue;
+        }
+        if (line.includes('=== UNALLOCATED PROFESSIONALIZED DATA POINTS ===')) {
+          currentSection = 'unallocated';
+          continue;
+        }
+        if (line.includes('=== UNANSWERED QUESTIONS ===')) {
+          currentSection = 'unanswered';
+          continue;
+        }
+
+        if (currentSection === 'businessPlan') {
+          // Topic header: # Topic: Business Overview
+          if (line.startsWith('# Topic:')) {
+            currentTopic = {
+              title: line.replace('# Topic:', '').trim(),
+              subtopics: []
+            };
+            sections.businessPlan.push(currentTopic);
+          }
+          // Subtopic header: ## Subtopic: Company Description
+          else if (line.startsWith('## Subtopic:')) {
+            currentSubtopic = {
+              title: line.replace('## Subtopic:', '').trim(),
+              dataPoints: []
+            };
+            if (currentTopic) {
+              currentTopic.subtopics.push(currentSubtopic);
+            }
+          }
+          // Data point: - ([questionId]) Data point
+          else if (line.startsWith('- ')) {
+            const dataPoint = line.substring(2).trim();
+            if (currentSubtopic) {
+              currentSubtopic.dataPoints.push(dataPoint);
+            }
+          }
+        }
+        else if (currentSection === 'unallocated') {
+          if (line.startsWith('- ')) {
+            sections.unallocated.push(line.substring(2).trim());
+          }
+        }
+        else if (currentSection === 'unanswered') {
+          // Topic header: # Topic: Business Overview
+          if (line.startsWith('# Topic:')) {
+            currentTopic = {
+              title: line.replace('# Topic:', '').trim(),
+              subtopics: []
+            };
+            sections.unanswered.push(currentTopic);
+          }
+          // Subtopic header: ## Subtopic: Company Description
+          else if (line.startsWith('## Subtopic:')) {
+            currentSubtopic = {
+              title: line.replace('## Subtopic:', '').trim(),
+              questions: []
+            };
+            if (currentTopic) {
+              currentTopic.subtopics.push(currentSubtopic);
+            }
+          }
+          // Question: - 1.1.1 What is the question?
+          else if (line.startsWith('- ')) {
+            const question = line.substring(2).trim();
+            if (currentSubtopic) {
+              currentSubtopic.questions.push(question);
+            }
+          }
+        }
+      }
+
+      return sections;
+    } catch (error) {
+      console.error('Error parsing business plan response:', error);
+      return null;
+    }
+  };
+
+  // Parse response when fullPayloadResult changes
+  useEffect(() => {
+    if (fullPayloadResult?.result?.content) {
+      const parsed = parseBusinessPlanResponse(fullPayloadResult.result.content);
+      setParsedBusinessPlan(parsed);
+    } else {
+      setParsedBusinessPlan(null);
+    }
+  }, [fullPayloadResult]);
 
   return (
     <>
@@ -417,16 +530,132 @@ export default function DataMapperPage() {
                       </pre>
                     </div>
                     
-                    {fullPayloadResult.result?.content && (
+                    {parsedBusinessPlan ? (
+                      <div className="space-y-4">
+                        {/* Business Plan Structure */}
+                        <div className="bg-green-50 border border-green-200 rounded-md">
+                          <div className="px-3 py-2 border-b border-green-200 bg-green-100 text-xs font-medium text-green-800">
+                            Structured Business Plan
+                          </div>
+                          <div className="p-3 space-y-4">
+                            {parsedBusinessPlan.businessPlan.map((topic: any, topicIndex: number) => (
+                              <div key={topicIndex} className="border border-gray-200 rounded-md">
+                                <div className="px-3 py-2 bg-gray-100 border-b border-gray-200">
+                                  <h3 className="text-sm font-medium text-gray-900">{topic.title}</h3>
+                                </div>
+                                <div className="p-3 space-y-3">
+                                  {topic.subtopics.map((subtopic: any, subtopicIndex: number) => (
+                                    <div key={subtopicIndex} className="border-l-2 border-blue-200 pl-3">
+                                      <h4 className="text-sm font-medium text-blue-800 mb-2">{subtopic.title}</h4>
+                                      <div className="space-y-1">
+                                        {subtopic.dataPoints.map((dataPoint: string, dpIndex: number) => (
+                                          <div key={dpIndex} className="text-sm text-gray-700 flex">
+                                            <span className="text-blue-600 mr-2">•</span>
+                                            <span>{dataPoint}</span>
+                                          </div>
+                                        ))}
+                                        {subtopic.dataPoints.length === 0 && (
+                                          <div className="text-xs text-gray-500 italic">No data points allocated</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Unallocated Data Points */}
+                        <div className="border border-gray-200 rounded-md">
+                          <button
+                            onClick={() => setShowUnallocated(!showUnallocated)}
+                            className="w-full px-3 py-2 bg-yellow-50 border-b border-gray-200 flex items-center justify-between text-left hover:bg-yellow-100"
+                          >
+                            <span className="text-sm font-medium text-yellow-800">
+                              Unallocated Data Points ({parsedBusinessPlan.unallocated.length})
+                            </span>
+                            <svg 
+                              className={`w-4 h-4 transform transition-transform ${showUnallocated ? 'rotate-90' : ''}`}
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                          {showUnallocated && (
+                            <div className="p-3 space-y-2">
+                              {parsedBusinessPlan.unallocated.length > 0 ? (
+                                parsedBusinessPlan.unallocated.map((item: string, index: number) => (
+                                  <div key={index} className="text-sm text-gray-700 flex">
+                                    <span className="text-yellow-600 mr-2">•</span>
+                                    <span>{item}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-sm text-gray-500 italic">No unallocated data points</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Unanswered Questions */}
+                        <div className="border border-gray-200 rounded-md">
+                          <button
+                            onClick={() => setShowUnanswered(!showUnanswered)}
+                            className="w-full px-3 py-2 bg-red-50 border-b border-gray-200 flex items-center justify-between text-left hover:bg-red-100"
+                          >
+                            <span className="text-sm font-medium text-red-800">
+                              Unanswered Questions ({parsedBusinessPlan.unanswered.reduce((total: number, topic: any) => 
+                                total + topic.subtopics.reduce((subTotal: number, subtopic: any) => subTotal + subtopic.questions.length, 0), 0)})
+                            </span>
+                            <svg 
+                              className={`w-4 h-4 transform transition-transform ${showUnanswered ? 'rotate-90' : ''}`}
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                          {showUnanswered && (
+                            <div className="p-3 space-y-3">
+                              {parsedBusinessPlan.unanswered.map((topic: any, topicIndex: number) => (
+                                <div key={topicIndex}>
+                                  <h4 className="text-sm font-medium text-gray-900 mb-2">{topic.title}</h4>
+                                  {topic.subtopics.map((subtopic: any, subtopicIndex: number) => (
+                                    <div key={subtopicIndex} className="border-l-2 border-red-200 pl-3 mb-2">
+                                      <h5 className="text-sm font-medium text-red-800 mb-1">{subtopic.title}</h5>
+                                      <div className="space-y-1">
+                                        {subtopic.questions.map((question: string, qIndex: number) => (
+                                          <div key={qIndex} className="text-sm text-gray-700 flex">
+                                            <span className="text-red-600 mr-2">•</span>
+                                            <span>{question}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                              {parsedBusinessPlan.unanswered.length === 0 && (
+                                <div className="text-sm text-gray-500 italic">No unanswered questions</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : fullPayloadResult.result?.content ? (
                       <div className="bg-blue-50 border border-blue-200 rounded-md">
                         <div className="px-3 py-2 border-b border-blue-200 bg-blue-100 text-xs font-medium text-blue-800">
-                          AI Response Content
+                          AI Response Content (Raw)
                         </div>
                         <div className="p-3 text-sm text-gray-800 whitespace-pre-wrap max-h-64 overflow-auto">
                           {fullPayloadResult.result.content}
                         </div>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ) : (
                   <div className="text-center text-gray-500 text-sm">

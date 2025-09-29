@@ -31,8 +31,10 @@ interface RecordData {
 }
 
 interface CompileResult {
+  topics: any[];
+  unallocated: { id: string; text: string }[];
+  unanswered: { id: string; questionId: string; text: string }[];
   outline: Record<string, string>;
-  tree: any[];
   warnings: string[];
   meta: {
     recordId: string;
@@ -54,6 +56,7 @@ export default function StructureEditor({ recordId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [treeOpen, setTreeOpen] = useState(false);
+  const [structureOpen, setStructureOpen] = useState(false);
 
   // Copy to clipboard function
   const copyToClipboard = async (content: any, type: string) => {
@@ -444,15 +447,15 @@ export default function StructureEditor({ recordId }: Props) {
                 </div>
               )}
 
-              {/* Collapsible Compiled Tree */}
-              {savedCompileResult.tree && (
+              {/* Collapsible Compiled Topics */}
+              {savedCompileResult.topics && (
                 <div className="border border-gray-200 rounded-sm">
                   <div className="relative">
                     <button
                       onClick={() => setTreeOpen(!treeOpen)}
                       className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
                     >
-                      <span className="text-sm font-normal">Compiled Tree</span>
+                      <span className="text-sm font-normal">Compiled Topics</span>
                       <svg 
                         className={`w-4 h-4 transform transition-transform ${treeOpen ? 'rotate-90' : ''}`}
                         fill="none" 
@@ -466,10 +469,10 @@ export default function StructureEditor({ recordId }: Props) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        copyToClipboard(savedCompileResult.tree, 'Compiled Tree');
+                        copyToClipboard(savedCompileResult.topics, 'Compiled Topics');
                       }}
                       className="absolute top-2 right-10 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                      title="Copy compiled tree to clipboard"
+                      title="Copy compiled topics to clipboard"
                     >
                       <svg 
                         className="w-4 h-4"
@@ -484,12 +487,64 @@ export default function StructureEditor({ recordId }: Props) {
                   {treeOpen && (
                     <div className="border-t border-gray-200 p-3">
                       <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto font-mono">
-                        {JSON.stringify(savedCompileResult.tree, null, 2)}
+                        {JSON.stringify(savedCompileResult.topics, null, 2)}
                       </pre>
                     </div>
                   )}
                 </div>
               )}
+
+              {/* Unallocated Items */}
+              <div className="border border-gray-200 rounded-sm">
+                <div className="p-3 bg-gray-50 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-normal">Unallocated Items</span>
+                    <span className="text-xs text-gray-500">
+                      {savedCompileResult.unallocated?.length || 0} items
+                    </span>
+                  </div>
+                </div>
+                <div className="p-3">
+                  {savedCompileResult.unallocated && savedCompileResult.unallocated.length > 0 ? (
+                    <div className="space-y-2">
+                      {savedCompileResult.unallocated.map((item, index) => (
+                        <div key={index} className="text-sm p-2 bg-yellow-50 border border-yellow-200 rounded">
+                          <div className="font-mono text-xs text-gray-500">{item.id}</div>
+                          <div>{item.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">No unallocated items</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Unanswered Questions */}
+              <div className="border border-gray-200 rounded-sm">
+                <div className="p-3 bg-gray-50 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-normal">Unanswered Questions</span>
+                    <span className="text-xs text-gray-500">
+                      {savedCompileResult.unanswered?.length || 0} questions
+                    </span>
+                  </div>
+                </div>
+                <div className="p-3">
+                  {savedCompileResult.unanswered && savedCompileResult.unanswered.length > 0 ? (
+                    <div className="space-y-2">
+                      {savedCompileResult.unanswered.map((item, index) => (
+                        <div key={index} className="text-sm p-2 bg-red-50 border border-red-200 rounded">
+                          <div className="font-mono text-xs text-gray-500">{item.id} → {item.questionId}</div>
+                          <div>{item.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">No unanswered questions</div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
             <div>

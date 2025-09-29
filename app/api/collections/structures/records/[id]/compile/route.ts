@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
       );
     }
 
-    // Compile the structure tree
+    // Compile the structure tree with new format
     const compileResult = compileStructureTree(tree);
 
     // Check if save=true query parameter
@@ -69,9 +69,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 
     // Return compile result with metadata
     return Response.json({
-      outline: compileResult.outline,
-      tree: compileResult.tree,
-      warnings: compileResult.warnings,
+      ...compileResult,
       meta: {
         recordId: record.id,
         saved
