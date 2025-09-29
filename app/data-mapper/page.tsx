@@ -24,6 +24,11 @@ export default function DataMapperPage() {
   const [showPayload, setShowPayload] = useState(false);
   const [showFullPayload, setShowFullPayload] = useState(false);
   const [fullPayloadText, setFullPayloadText] = useState<string>("{\n  \"example\": \"value\"\n}");
+  const [isRunningFullPayload, setIsRunningFullPayload] = useState(false);
+  const [fullPayloadResult, setFullPayloadResult] = useState<any>(null);
+  const [fullPayloadError, setFullPayloadError] = useState<string | null>(null);
+  const [fullPayloadDebugInfo, setFullPayloadDebugInfo] = useState<any>(null);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   const payload = useMemo(() => {
     const task = tasks.find(t => t.id === selectedTaskId);
@@ -375,7 +380,60 @@ export default function DataMapperPage() {
                   <h2 className="text-sm font-medium text-gray-900">Outputs Panel</h2>
                 </div>
               </div>
-              <div className="p-4"></div>
+              <div className="p-4">
+                {fullPayloadResult ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-gray-900">API Response</div>
+                      <div className="flex gap-2">
+                        <button
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                          onClick={() => {
+                            const rawResponse = JSON.stringify(fullPayloadResult, null, 2);
+                            navigator.clipboard?.writeText(rawResponse);
+                          }}
+                        >
+                          Copy Raw
+                        </button>
+                        <button
+                          className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                          onClick={() => {
+                            setFullPayloadResult(null);
+                            setFullPayloadError(null);
+                            setFullPayloadDebugInfo(null);
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gray-50 border border-gray-200 rounded-md">
+                      <div className="px-3 py-2 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-700">
+                        Raw Response
+                      </div>
+                      <pre className="p-3 text-xs text-gray-800 overflow-auto max-h-96 whitespace-pre-wrap">
+                        {JSON.stringify(fullPayloadResult, null, 2)}
+                      </pre>
+                    </div>
+                    
+                    {fullPayloadResult.result?.content && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-md">
+                        <div className="px-3 py-2 border-b border-blue-200 bg-blue-100 text-xs font-medium text-blue-800">
+                          AI Response Content
+                        </div>
+                        <div className="p-3 text-sm text-gray-800 whitespace-pre-wrap max-h-64 overflow-auto">
+                          {fullPayloadResult.result.content}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 text-sm">
+                    No output yet. Run an API call to see results here.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -431,24 +489,256 @@ export default function DataMapperPage() {
               </div>
             </div>
             <div className="p-4 flex-1 overflow-auto">
+              {!fullPayloadResult && !fullPayloadError ? (
               <textarea
                 className="w-full h-full text-xs leading-5 text-gray-800 border border-gray-300 rounded-md p-3 font-mono"
                 value={fullPayloadText}
                 onChange={(e) => setFullPayloadText(e.target.value)}
-              />
+                  placeholder="Enter your custom JSON payload here..."
+                />
+              ) : (
+                <div className="h-full overflow-auto">
+                  {fullPayloadError ? (
+                    <div className="space-y-3">
+                      <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                        <div className="text-sm font-medium text-red-800 mb-2">Error</div>
+                        <div className="text-sm text-red-700 mb-3">{fullPayloadError}</div>
+                        
+                        <div className="flex gap-2 flex-wrap">
+                          <button
+                            className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200"
+                            onClick={() => {
+                              setFullPayloadError(null);
+                              setFullPayloadResult(null);
+                              setFullPayloadDebugInfo(null);
+                              setShowDebugInfo(false);
+                            }}
+                          >
+                            Try Again
+                          </button>
+                          
+                          {fullPayloadDebugInfo && (
+                            <button
+                              className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                              onClick={() => setShowDebugInfo(!showDebugInfo)}
+                            >
+                              {showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {showDebugInfo && fullPayloadDebugInfo && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-sm font-medium text-gray-800">Debug Information</div>
+                            <button
+                              className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                              onClick={() => {
+                                const essentialDebug = {
+                                  timestamp: fullPayloadDebugInfo.timestamp,
+                                  error: {
+                                    type: fullPayloadDebugInfo.error?.type,
+                                    message: fullPayloadDebugInfo.error?.message,
+                                    stage: fullPayloadDebugInfo.error?.stage,
+                                    ...(fullPayloadDebugInfo.error?.details && { details: fullPayloadDebugInfo.error.details })
+                                  },
+                                  request: {
+                                    url: fullPayloadDebugInfo.request?.url,
+                                    method: fullPayloadDebugInfo.request?.method
+                                  },
+                                  ...(fullPayloadDebugInfo.response && {
+                                    response: {
+                                      status: fullPayloadDebugInfo.response.status,
+                                      statusText: fullPayloadDebugInfo.response.statusText,
+                                      error: fullPayloadDebugInfo.response.body?.error,
+                                      details: fullPayloadDebugInfo.response.body?.details
+                                    }
+                                  })
+                                };
+                                const debugText = JSON.stringify(essentialDebug, null, 2);
+                                navigator.clipboard?.writeText(debugText);
+                              }}
+                            >
+                              Copy Debug Info
+                            </button>
+                          </div>
+                          
+                          <div className="space-y-3 text-xs">
+                            <div>
+                              <div className="font-medium text-gray-700 mb-1">Error Details:</div>
+                              <div className="bg-white border rounded p-2">
+                                <div><strong>Type:</strong> {fullPayloadDebugInfo.error?.type}</div>
+                                <div><strong>Stage:</strong> {fullPayloadDebugInfo.error?.stage}</div>
+                                <div><strong>Message:</strong> {fullPayloadDebugInfo.error?.message}</div>
+                                {fullPayloadDebugInfo.error?.details && (
+                                  <div><strong>Details:</strong> {fullPayloadDebugInfo.error.details}</div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <div className="font-medium text-gray-700 mb-1">Request:</div>
+                              <pre className="bg-white border rounded p-2 text-xs overflow-auto max-h-32">
+                                {JSON.stringify(fullPayloadDebugInfo.request, null, 2)}
+                              </pre>
+                            </div>
+                            
+                            {fullPayloadDebugInfo.response && (
+                              <div>
+                                <div className="font-medium text-gray-700 mb-1">Response:</div>
+                                <pre className="bg-white border rounded p-2 text-xs overflow-auto max-h-32">
+                                  {JSON.stringify(fullPayloadDebugInfo.response, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            
+                            <div>
+                              <div className="font-medium text-gray-700 mb-1">Timestamp:</div>
+                              <div className="bg-white border rounded p-2">
+                                {fullPayloadDebugInfo.timestamp}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : fullPayloadResult ? (
+                    <div className="space-y-4">
+                      <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                        <div className="text-sm font-medium text-green-800 mb-1">Success</div>
+                        <div className="text-xs text-green-700">
+                          API Call Type: {fullPayloadResult.apiCallType} | 
+                          Model: {fullPayloadResult.result?.model} | 
+                          Tokens: {fullPayloadResult.result?.usage?.total_tokens || 'N/A'}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+                        <div className="text-sm font-medium text-gray-800 mb-2">AI Response</div>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-auto">
+                          {fullPayloadResult.result?.content || 'No content returned'}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+                        <div className="text-sm font-medium text-gray-800 mb-2">Full Response</div>
+                        <pre className="text-xs text-gray-600 whitespace-pre-wrap max-h-40 overflow-auto">
+                          {JSON.stringify(fullPayloadResult, null, 2)}
+                        </pre>
+                      </div>
+                      
+                      <button
+                        className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                        onClick={() => {
+                          setFullPayloadError(null);
+                          setFullPayloadResult(null);
+                        }}
+                      >
+                        Run Another Request
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
             <div className="p-3 border-t border-gray-200 flex justify-end gap-2">
               <button
-                className="text-sm px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50"
+                className={`text-sm px-3 py-1.5 border border-gray-300 rounded-md transition-colors ${
+                  isRunningFullPayload 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'hover:bg-gray-50 text-gray-700'
+                }`}
+                disabled={isRunningFullPayload}
                 onClick={async () => {
+                  if (isRunningFullPayload) return;
+                  
+                  const debugInfo = {
+                    timestamp: new Date().toISOString(),
+                    request: {
+                      url: '/api/data-mapper/process-custom',
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: fullPayloadText
+                    },
+                    response: null,
+                    error: null,
+                    parsedPayload: null
+                  };
+                  
                   try {
-                    const body = JSON.parse(fullPayloadText);
-                    await fetch('/api/collections/tasks/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: body }) });
-                    setShowFullPayload(false);
-                  } catch {}
+                    setIsRunningFullPayload(true);
+                    setFullPayloadError(null);
+                    setFullPayloadResult(null);
+                    setFullPayloadDebugInfo(null);
+                    setShowDebugInfo(false);
+                    
+                    // Validate JSON first
+                    try {
+                      debugInfo.parsedPayload = JSON.parse(fullPayloadText);
+                    } catch (parseError) {
+                      debugInfo.error = {
+                        type: 'JSON_PARSE_ERROR',
+                        message: parseError instanceof Error ? parseError.message : 'Invalid JSON',
+                        stage: 'validation'
+                      };
+                      throw parseError;
+                    }
+                    
+                    // Call the correct endpoint
+                    const response = await fetch('/api/data-mapper/process-custom', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: fullPayloadText
+                    });
+                    
+                    debugInfo.response = {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: Object.fromEntries(response.headers.entries()),
+                      url: response.url
+                    };
+                    
+                    const result = await response.json();
+                    debugInfo.response.body = result;
+                    
+                    if (response.ok) {
+                      setFullPayloadResult(result);
+                      setShowFullPayload(false); // Close the modal on success
+                    } else {
+                      debugInfo.error = {
+                        type: 'API_ERROR',
+                        message: result.error || 'API call failed',
+                        details: result.details || null,
+                        stage: 'api_response'
+                      };
+                      setFullPayloadError(result.error || 'API call failed');
+                      setFullPayloadDebugInfo(debugInfo);
+                    }
+                    
+                  } catch (error) {
+                    console.error('Full payload API error:', error);
+                    
+                    if (!debugInfo.error) {
+                      debugInfo.error = {
+                        type: 'NETWORK_ERROR',
+                        message: error instanceof Error ? error.message : 'Unknown network error',
+                        stage: 'network'
+                      };
+                    }
+                    
+                    setFullPayloadError(
+                      error instanceof Error 
+                        ? error.message 
+                        : 'Invalid JSON or network error'
+                    );
+                    setFullPayloadDebugInfo(debugInfo);
+                  } finally {
+                    setIsRunningFullPayload(false);
+                  }
                 }}
               >
-                Run Full Payload API Call
+                {isRunningFullPayload ? 'Running...' : 'Run Full Payload API Call'}
               </button>
             </div>
           </div>

@@ -29,6 +29,46 @@ export default function DesignMaster() {
     "Validating constraints and edge cases…",
   ];
 
+  // Dropdown options for each action
+  const dropdownOptions = {
+    add: [
+      { label: 'Add to Projects', action: () => console.log('Add to Projects') },
+      { separator: true },
+      { label: 'Random', action: () => console.log('Add to Random') },
+      { label: 'Project Alpha', action: () => console.log('Add to Project Alpha') },
+      { label: 'Project Beta', action: () => console.log('Add to Project Beta') },
+    ],
+    save: [
+      { label: 'To PC', action: () => console.log('Save to PC') },
+      { label: 'To Projects', action: () => console.log('Save to Projects') },
+      { label: 'To CSV', action: () => console.log('Save to CSV') },
+      { label: 'To PDF', action: () => console.log('Save to PDF') },
+    ],
+    copy: [
+      { label: 'To Clipboard', action: () => console.log('Copy to Clipboard') },
+      { label: 'As Rich Text', action: () => console.log('Copy as Rich Text') },
+      { label: 'As Plain Text', action: () => console.log('Copy as Plain Text') },
+    ],
+    code: [
+      { label: 'Copy Raw Code', action: () => console.log('Copy Raw Code') },
+      { label: 'Copy JSON', action: () => console.log('Copy JSON') },
+      { label: 'Copy XML', action: () => console.log('Copy XML') },
+    ],
+    share: [
+      { label: 'To Team', action: () => console.log('Send to Team') },
+      { label: 'To WhatsApp', action: () => console.log('Send to WhatsApp') },
+      { label: 'To Email', action: () => console.log('Send to Email') },
+      { label: 'To Slack', action: () => console.log('Send to Slack') },
+      { label: 'Generate Link', action: () => console.log('Generate Link') },
+    ],
+    download: [
+      { label: 'Download PDF', action: () => console.log('Download PDF') },
+      { label: 'Download Word', action: () => console.log('Download Word') },
+      { label: 'Download Excel', action: () => console.log('Download Excel') },
+      { label: 'Download ZIP', action: () => console.log('Download ZIP') },
+    ],
+  };
+
   const actionItems: Array<{ key: string; title: string; svg: JSX.Element }> = [
     {
       key: 'add',
@@ -117,8 +157,11 @@ export default function DesignMaster() {
         const toolsRes = await fetch('/api/collections/tools-pages/records', { headers: { 'Content-Type': 'application/json' } });
         if (!toolsRes.ok) return;
         const records: Array<{ id: string; data?: Record<string, unknown> }> = await toolsRes.json();
+        console.log('Tools & Pages records:', records);
         const page = records.find(r => String((r.data as any)?.name || '').toLowerCase() === 'design master');
+        console.log('Design Master page record:', page);
         const advisorId = page?.data ? (page.data as any).mainAdvisorId : null;
+        console.log('Advisor ID:', advisorId);
         const hiw: string[] = page?.data ? [
           String((page.data as any).howItWorks1 || '').trim(),
           String((page.data as any).howItWorks2 || '').trim(),
@@ -126,17 +169,23 @@ export default function DesignMaster() {
           String((page.data as any).howItWorks4 || '').trim(),
         ].filter(Boolean) : [];
         if (!cancelled) setHowItWorksTexts(hiw);
-        if (!advisorId) return;
+        if (!advisorId) {
+          console.log('No advisor ID found for Design Master page');
+          return;
+        }
         const advRes = await fetch(`/api/collections/advisors/records/${advisorId}`, { headers: { 'Content-Type': 'application/json' } });
         if (!advRes.ok) return;
         const advisor = await advRes.json();
+        console.log('Advisor record:', advisor);
         const raw = advisor?.data?.image ? String(advisor.data.image) : '';
+        console.log('Raw image value:', raw);
         const img = raw
           ? (/^https?:\/\//i.test(raw) || raw.startsWith('/') ? raw : `/uploads/${raw}`)
           : '';
+        console.log('Final image URL:', img);
         if (!cancelled) setAdvisorImageUrl(img || null);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.error('Error loading advisor image:', error);
       }
     })();
     return () => { cancelled = true; };
@@ -243,7 +292,7 @@ export default function DesignMaster() {
                 aria-label="Toggle Inputs visibility"
                 aria-expanded={!inputsCollapsed}
                 onClick={() => setInputsCollapsed((v) => !v)}
-                className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-left hover:bg-gray-200/60"
+                className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-left hover:bg-gray-200 transition-colors min-h-[52px]"
               >
                 <svg
                   className={`w-4 h-4 transform transition-transform ${inputsCollapsed ? "" : "rotate-90"}`}
@@ -261,7 +310,12 @@ export default function DesignMaster() {
                 <div className="mb-4 w-full h-64 bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
                   {advisorImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={advisorImageUrl} alt="Advisor" className="w-full h-full object-cover" />
+                    <img 
+                      src={advisorImageUrl} 
+                      alt="Advisor" 
+                      className="w-full h-full object-cover" 
+                      style={{ objectPosition: 'center 5%' }}
+                    />
                   ) : (
                     <span>Image Placeholder</span>
                   )}
@@ -326,30 +380,38 @@ export default function DesignMaster() {
             style={{ width: outputsExpanded ? "100%" : "calc(75% - 0.5rem)", transition: "width 200ms ease" }}
           >
             <div className="bg-white rounded-md border border-gray-200 transition-colors relative">
-              <div className="bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200">
-                <div className="flex items-center justify-between">
+              <div 
+                className="bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 cursor-pointer hover:bg-gray-200 transition-colors min-h-[52px] flex items-center"
+                onClick={() => setOutputsExpanded((v) => !v)}
+                role="button"
+                tabIndex={0}
+                aria-label="Toggle Outputs width"
+                aria-expanded={outputsExpanded}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setOutputsExpanded((v) => !v);
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      aria-label="Toggle Outputs width"
-                      aria-expanded={outputsExpanded}
-                      onClick={() => setOutputsExpanded((v) => !v)}
-                      className={`p-1 ${outputsExpanded ? "ml-0" : "-ml-1"} text-gray-700 hover:text-gray-900 relative z-10`}
+                    <svg
+                      className={`w-4 h-4 transform transition-transform ${outputsExpanded ? "" : "rotate-180"} ${outputsExpanded ? "ml-0" : "-ml-1"}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
                     >
-                      <svg
-                        className={`w-4 h-4 transform transition-transform ${outputsExpanded ? "" : "rotate-180"}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                     <h2 className="text-sm font-medium text-gray-900">Outputs Panel</h2>
                   </div>
                   <button
                     type="button"
-                    onClick={handleShowHowItWorks}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent triggering the panel toggle
+                      handleShowHowItWorks();
+                    }}
                     className={`bg-blue-100 text-blue-800 px-3 py-1 rounded-md font-normal text-xs hover:bg-blue-200 transition-all ${ribbonHidden ? 'opacity-0 scale-95' : 'opacity-100'} duration-200`}
                     aria-label="Show How it Works"
                   >
@@ -357,29 +419,20 @@ export default function DesignMaster() {
                   </button>
                 </div>
               </div>
-              <div className="p-4">
-                {showHowItWorks && (
-                  <div>
-                    <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
-                      {typedText}
-                      {isTyping && <span className="inline-block w-2 h-4 bg-gray-400 ml-1 align-baseline animate-pulse" />}
+{(showHowItWorks || isSimulating || simulateResult) && (
+                <div className="p-4">
+                  {showHowItWorks && (
+                    <div>
+                      <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
+                        {typedText}
+                        {isTyping && <span className="inline-block w-2 h-4 bg-gray-400 ml-1 align-baseline animate-pulse" />}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {!showHowItWorks && (
-                  <div className="text-sm text-gray-500">
-                    Click "How it Works?" to view details.
-                  </div>
-                )}
+                  )}
 
-                {/* Simulation states */}
-                {isSimulating && (
-                  <div className="mt-3 space-y-2">
-                    <div className="h-3 w-48 bg-gray-100 rounded animate-pulse"></div>
-                    <div className="h-3 w-72 bg-gray-100 rounded animate-pulse"></div>
-                    <div className="h-3 w-60 bg-gray-100 rounded animate-pulse"></div>
-                    <div className="text-xs text-gray-500">Processing… ~7s</div>
-                    <div className="mt-3 flex justify-center">
+                  {/* Simulation states */}
+                  {isSimulating && (
+                    <div className="my-3 flex justify-center">
                       <div className="w-1/2">
                         <div className="border border-gray-200 bg-gray-50 rounded-md h-9 px-4 flex items-center justify-center overflow-hidden">
                           <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
@@ -388,20 +441,20 @@ export default function DesignMaster() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                {!isSimulating && simulateResult && (
-                  <div className="mt-3 text-sm text-gray-800">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
-                      <span>Simulation complete in {Math.round(simulateResult.elapsedMs)} ms</span>
+                  )}
+                  {!isSimulating && simulateResult && (
+                    <div className="mt-3 text-sm text-gray-800">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                        <span>Simulation complete in {Math.round(simulateResult.elapsedMs)} ms</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
               {showHowItWorks && (
                 <div className="absolute right-3 bottom-3">
                   {howItWorksStep + 1 >= howItWorksTexts.length ? (
@@ -427,14 +480,34 @@ export default function DesignMaster() {
               {showActions && (
                 <div className="absolute top-2 right-2 flex flex-row-reverse items-center gap-2">
                   {actionItems.slice(0, visibleActionCount).map((a, idx) => (
-                    <button
-                      key={a.key}
-                      title={a.title}
-                      className="bg-blue-100 text-blue-800 border border-blue-300 rounded-md p-1 shadow-sm hover:bg-blue-200 transition-all nb-anim-fade-slide-in"
-                      style={{ animationDelay: `${idx * 60}ms` }}
-                    >
-                      {a.svg}
-                    </button>
+                    <div key={a.key} className="relative group">
+                      <button
+                        title={a.title}
+                        className="bg-blue-100 text-blue-800 border border-blue-300 rounded-md p-1 shadow-sm hover:bg-blue-200 transition-all nb-anim-fade-slide-in"
+                        style={{ animationDelay: `${idx * 60}ms` }}
+                      >
+                        {a.svg}
+                      </button>
+                      
+                      {/* Hover Dropdown */}
+                      <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
+                        <div className="py-2">
+                          {dropdownOptions[a.key as keyof typeof dropdownOptions]?.map((option, optIdx) => (
+                            option.separator ? (
+                              <hr key={`sep-${optIdx}`} className="my-1 border-gray-200" />
+                            ) : (
+                              <button
+                                key={`opt-${optIdx}`}
+                                onClick={option.action}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                              >
+                                {option.label}
+                              </button>
+                            )
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

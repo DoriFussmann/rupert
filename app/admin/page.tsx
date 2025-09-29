@@ -1107,18 +1107,45 @@ export default function AdminPage() {
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                // For now, just store the filename. In production, you'd upload to cloud storage
-                                setEditAdvisorData({...editAdvisorData, [field.key]: file.name});
+                                try {
+                                  const formData = new FormData();
+                                  formData.append('file', file);
+                                  
+                                  const response = await fetch('/api/upload', {
+                                    method: 'POST',
+                                    body: formData,
+                                  });
+                                  
+                                  if (response.ok) {
+                                    const result = await response.json();
+                                    setEditAdvisorData({...editAdvisorData, [field.key]: result.filePath});
+                                  } else {
+                                    const error = await response.json();
+                                    alert(`Upload failed: ${error.error}`);
+                                  }
+                                } catch (error) {
+                                  console.error('Upload error:', error);
+                                  alert('Upload failed. Please try again.');
+                                }
                               }
                             }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md"
                           />
                           {editAdvisorData[field.key] && (
-                            <div className="text-sm text-gray-600">
-                              Current: {String(editAdvisorData[field.key])}
+                            <div className="space-y-2">
+                              <div className="text-sm text-gray-600">
+                                Current: {String(editAdvisorData[field.key])}
+                              </div>
+                              {String(editAdvisorData[field.key]).startsWith('/uploads/') && (
+                                <img 
+                                  src={String(editAdvisorData[field.key])} 
+                                  alt="Preview" 
+                                  className="w-20 h-20 object-cover rounded-md border"
+                                />
+                              )}
                             </div>
                           )}
                         </div>
@@ -1142,9 +1169,18 @@ export default function AdminPage() {
                       <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
                         {field.type === 'image' ? (
                           selectedAdvisor.data?.[field.key] ? (
-                            <div className="flex items-center gap-2">
-                              <span>📷</span>
-                              <span>{String(selectedAdvisor.data[field.key])}</span>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span>📷</span>
+                                <span>{String(selectedAdvisor.data[field.key])}</span>
+                              </div>
+                              {String(selectedAdvisor.data[field.key]).startsWith('/uploads/') && (
+                                <img 
+                                  src={String(selectedAdvisor.data[field.key])} 
+                                  alt={`${selectedAdvisor.data?.name || 'Advisor'} image`}
+                                  className="w-24 h-24 object-cover rounded-md border"
+                                />
+                              )}
                             </div>
                           ) : (
                             "No image uploaded"
