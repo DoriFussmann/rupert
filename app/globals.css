@@ -142,3 +142,26 @@ header .brand {
 header nav a:hover { 
   text-decoration: underline;
 }
+
+@keyframes nb-fade-slide-in {
+  0% { opacity: 0; transform: translateX(8px) scale(0.96); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.nb-anim-fade-slide-in {
+  animation: nb-fade-slide-in 300ms ease forwards;
+}
+
+@keyframes nb-loading-line-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes nb-loading-line-out {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Simple enter animation; using key switch causes remount so we only need 'in' */
+.nb-anim-loading-line {
+  animation: nb-loading-line-in 300ms ease;
+}
