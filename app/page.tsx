@@ -49,13 +49,13 @@ export default function Home() {
   }, []);
 
   // Typewriter state
-  const words: string[] = ["create", "build", "design", "prompt", "model"];
+  const words: string[] = ["create?", "build?", "design?", "prompt?", "model?"];
   const colorMap: Record<string, string> = {
-    create: "text-blue-600",
-    build: "text-green-600",
-    design: "text-purple-600",
-    prompt: "text-orange-600",
-    model: "text-rose-600",
+    "create?": "text-blue-600",
+    "build?": "text-green-600",
+    "design?": "text-purple-600",
+    "prompt?": "text-orange-600",
+    "model?": "text-rose-600",
   };
   const [wordIndex, setWordIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
@@ -198,7 +198,7 @@ export default function Home() {
     <>
       <NavigationHeader />
       <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
-        <div className="pt-24 pb-16">
+        <div className="pt-12 pb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-center">
             {/* Left: Headline with typewriter */}
             <div className="pl-0 ml-0 md:col-span-3">
@@ -302,7 +302,7 @@ export default function Home() {
               className="text-3xl font-light text-gray-900 mb-12 text-center"
               style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto' }}
             >
-              Meet Our Advisors & Their Tools
+              Meet The Team
             </h2>
             
             <div className="space-y-8">
@@ -328,7 +328,7 @@ export default function Home() {
                           })()}
                           alt={advisor.data?.name || 'Advisor'}
                           className="w-full h-full object-cover"
-                          style={{ objectPosition: 'center 20%' }}
+                          style={{ objectPosition: 'center 5%' }}
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
