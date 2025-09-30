@@ -2,27 +2,25 @@ import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 
 interface Payload {
-  advisor: {
-    name: string;
-    role: string;
-    prompt: string;
-  };
   task: {
+    id: string;
     name: string;
     taskPrompt: string;
-  };
+  } | null;
   structure: {
-    outline: any;
-  };
+    id: string;
+    title: string;
+    compiled: any;
+  } | null;
   company: {
+    id: string;
     name: string;
     rawData: string;
-  };
-  parameters: {
-    model: string;
-    maxTokens: number;
-    temperature: number;
-  };
+  } | null;
+  llm: string;
+  model: string;
+  maxTokens: number;
+  temperature: number;
 }
 
 export async function POST(req: NextRequest) {
@@ -30,9 +28,9 @@ export async function POST(req: NextRequest) {
     const payload: Payload = await req.json();
 
     // Validate payload
-    if (!payload.advisor || !payload.task || !payload.structure || !payload.company || !payload.parameters) {
+    if (!payload.task || !payload.structure || !payload.company) {
       return new Response(
-        JSON.stringify({ error: 'Missing required payload fields' }),
+        JSON.stringify({ error: 'Missing required payload fields (task, structure, company)' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -52,7 +50,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Build the prompt from the payload
-    const systemPrompt = `You are ${payload.advisor.name}, a ${payload.advisor.role}. ${payload.advisor.prompt}`;
+    const systemPrompt = `You are a business analysis AI assistant. Your role is to process company data according to specific task instructions and structure guidelines to produce comprehensive business analysis and planning documents.`;
     
     const userPrompt = `
 Task: ${payload.task.name}
@@ -61,20 +59,21 @@ Task Instructions: ${payload.task.taskPrompt}
 Company: ${payload.company.name}
 Raw Data: ${payload.company.rawData}
 
-Structure Outline: ${JSON.stringify(payload.structure.outline, null, 2)}
+Structure: ${payload.structure.title}
+Compiled Structure: ${JSON.stringify(payload.structure.compiled, null, 2)}
 
-Please process this company data according to the task instructions and structure outline provided.
+Please process this company data according to the task instructions and structure provided. Follow the compiled structure format to organize your response.
 `;
 
     // Make the OpenAI API call
     const completion = await openai.chat.completions.create({
-      model: payload.parameters.model,
+      model: payload.model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
-      max_tokens: payload.parameters.maxTokens,
-      temperature: payload.parameters.temperature,
+      max_tokens: payload.maxTokens,
+      temperature: payload.temperature,
     });
 
     const response = {
@@ -85,13 +84,13 @@ Please process this company data according to the task instructions and structur
         content: completion.choices[0]?.message?.content || 'No response generated',
         usage: completion.usage,
         model: completion.model,
-        advisor: `${payload.advisor.name} (${payload.advisor.role})`,
         task: payload.task.name,
+        structure: payload.structure.title,
         company: payload.company.name,
         parameters: {
-          model: payload.parameters.model,
-          maxTokens: payload.parameters.maxTokens,
-          temperature: payload.parameters.temperature
+          model: payload.model,
+          maxTokens: payload.maxTokens,
+          temperature: payload.temperature
         }
       }
     };
