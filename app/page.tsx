@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import NavigationHeader from './components/NavigationHeader';
 
 interface AdvisorRecord {
@@ -85,6 +86,26 @@ export default function Home() {
     
     console.log('Filtered assigned tools:', assigned);
     return assigned;
+  };
+
+  // Helper function to convert page name to URL slug
+  const getPageSlug = (pageName: string) => {
+    return pageName
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+  };
+
+  // Helper function to get the first assigned page URL for an advisor
+  const getAdvisorPageUrl = (advisor: AdvisorRecord): string | null => {
+    const assignedPages = getAssignedToolsPages(advisor);
+    if (assignedPages.length > 0) {
+      const pageName = assignedPages[0].data?.name;
+      if (pageName) {
+        return `/${getPageSlug(String(pageName))}`;
+      }
+    }
+    return null;
   };
 
   useEffect(() => {
@@ -178,9 +199,9 @@ export default function Home() {
       <NavigationHeader />
       <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
         <div className="pt-24 pb-16">
-          <div className="grid grid-cols-1 md:grid-cols-10 gap-8 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-center">
             {/* Left: Headline with typewriter */}
-            <div className="pl-0 ml-0 md:col-span-7">
+            <div className="pl-0 ml-0 md:col-span-3">
               <h1
                 className="text-5xl md:text-6xl lg:text-7xl font-extralight text-gray-900 leading-tight"
                 style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto' }}
@@ -194,8 +215,8 @@ export default function Home() {
             </div>
 
             {/* Right: Advisor images */}
-            <div className="md:col-span-3 flex items-center justify-end">
-              <div className="w-full h-64 md:h-96 bg-gray-100 border border-gray-200 rounded-md shadow-inner overflow-hidden relative">
+            <div className="md:col-span-1 flex items-center justify-end">
+              <div className="w-full h-52 md:h-80 bg-gray-100 border border-gray-200 rounded-sm shadow-inner overflow-hidden relative">
                 {advisors.length > 0 ? (
                   <>
                 {/* Advisor Image with Complete Fade-Out/Fade-In Effect */}
@@ -276,7 +297,7 @@ export default function Home() {
 
         {/* Advisor Grid Section */}
         <div className="py-16 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4">
+          <div className="w-full max-w-[1120px] mx-auto">
             <h2 
               className="text-3xl font-light text-gray-900 mb-12 text-center"
               style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto' }}
@@ -285,12 +306,19 @@ export default function Home() {
             </h2>
             
             <div className="space-y-8">
-              {advisors.map((advisor, index) => (
-                <div key={advisor.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="flex flex-col md:flex-row">
-                    {/* Left: Advisor Image and Info */}
-                    <div className="md:w-80 flex-shrink-0">
-                      <div className="h-64 md:h-full bg-gray-100 relative">
+              {advisors.map((advisor, index) => {
+                const advisorPageUrl = getAdvisorPageUrl(advisor);
+                const AdvisorWrapper = advisorPageUrl ? Link : 'div';
+                const wrapperProps = advisorPageUrl ? { href: advisorPageUrl } : {};
+                
+                return (
+                  <AdvisorWrapper key={advisor.id} {...wrapperProps} className={advisorPageUrl ? "block hover:opacity-90 transition-opacity" : "block"}>
+                    <div className="overflow-hidden">
+                      {/* 5-Box Grid Layout with Separation */}
+                      <div className="grid grid-cols-5 gap-4">
+                    {/* Left Box: Advisor Image */}
+                    <div className="col-span-1">
+                      <div className="h-44 md:h-64 bg-gray-100 relative rounded-sm overflow-hidden shadow-sm border border-gray-200">
                         <img
                           src={(() => {
                             const imageUrl = advisor.data?.image || '';
@@ -326,56 +354,50 @@ export default function Home() {
                       </div>
                     </div>
                     
-                    {/* Right: Tools & Pages Grid */}
-                    <div className="flex-1 p-6">
-                      <h3 
-                        className="text-lg font-medium text-gray-900 mb-4"
-                        style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-                      >
-                        Tools & Pages
-                      </h3>
-                      
-                      {/* Tools & Pages Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                        {getAssignedToolsPages(advisor).length > 0 ? (
-                          getAssignedToolsPages(advisor).map((tool, toolIndex) => (
-                            <div 
-                              key={tool.id} 
-                              className={`rounded-lg px-4 py-3 border transition-all hover:shadow-sm ${
-                                toolIndex % 4 === 0 ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' :
-                                toolIndex % 4 === 1 ? 'bg-green-50 border-green-200 hover:bg-green-100' :
-                                toolIndex % 4 === 2 ? 'bg-purple-50 border-purple-200 hover:bg-purple-100' :
-                                'bg-orange-50 border-orange-200 hover:bg-orange-100'
-                              }`}
-                            >
-                              <span 
-                                className={`text-sm font-medium ${
-                                  toolIndex % 4 === 0 ? 'text-blue-800' :
-                                  toolIndex % 4 === 1 ? 'text-green-800' :
-                                  toolIndex % 4 === 2 ? 'text-purple-800' :
-                                  'text-orange-800'
-                                }`}
-                                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                    {/* Right 4 Boxes: Tools & Pages */}
+                    <div className="col-span-4 grid grid-cols-4 gap-4">
+                      {getAssignedToolsPages(advisor).length > 0 ? (
+                        getAssignedToolsPages(advisor).slice(0, 4).map((tool, toolIndex) => (
+                          <div 
+                            key={tool.id} 
+                            className="h-44 md:h-64 p-4 rounded-sm border border-gray-300 transition-all hover:shadow-md relative"
+                          >
+                            <div className="relative h-full">
+                              <div 
+                                className="text-xl text-gray-800 absolute top-8 left-3"
+                                style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 'normal' }}
                               >
                                 {tool.data?.name || 'Unnamed Tool'}
-                              </span>
+                              </div>
+                              <div className="absolute bottom-1 left-1 right-1 h-16 bg-gray-100 border border-gray-300 rounded-sm"></div>
                             </div>
-                          ))
-                        ) : (
-                          <div className="col-span-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-8 text-center">
-                            <span 
-                              className="text-sm text-gray-500 italic"
-                              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-                            >
-                              No tools assigned yet
-                            </span>
                           </div>
-                        )}
-                      </div>
+                        ))
+                      ) : (
+                        // Show empty boxes if no tools assigned
+                        Array.from({ length: 4 }).map((_, toolIndex) => (
+                          <div 
+                            key={toolIndex}
+                            className="h-44 md:h-64 p-4 rounded-sm border border-gray-300 relative"
+                          >
+                            <div className="relative h-full">
+                              <span 
+                                className="text-xl text-gray-500 italic absolute top-8 left-3"
+                                style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 'normal' }}
+                              >
+                                No tool assigned
+                              </span>
+                              <div className="absolute bottom-1 left-1 right-1 h-16 bg-gray-100 border border-gray-300 rounded-sm"></div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                    </div>
+                  </AdvisorWrapper>
+                );
+              })}
             </div>
           </div>
         </div>
