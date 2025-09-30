@@ -12,6 +12,10 @@ interface OutputsPanelProps {
   loadingMessages?: string[];
   onTriggerInputsPanelBlink?: () => void;
   onTriggerOutputsPanelBlink?: () => void;
+  chatMessages?: Array<{id: string, text: string, timestamp: Date, isUser: boolean}>;
+  onSendPayloadToChat?: (payload: string) => void;
+  onClearChat?: () => void;
+  advisorName?: string;
 }
 
 export default function OutputsPanel({ 
@@ -30,7 +34,11 @@ export default function OutputsPanel({
     "Validating constraints and edge cases…",
   ],
   onTriggerInputsPanelBlink,
-  onTriggerOutputsPanelBlink
+  onTriggerOutputsPanelBlink,
+  chatMessages = [],
+  onSendPayloadToChat,
+  onClearChat,
+  advisorName = 'Advisor'
 }: OutputsPanelProps) {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [howItWorksStep, setHowItWorksStep] = useState(0);
@@ -40,6 +48,59 @@ export default function OutputsPanel({
   const [showActions, setShowActions] = useState(false);
   const [visibleActionCount, setVisibleActionCount] = useState(0);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [isTypingResponse, setIsTypingResponse] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Copy chat content for debugging
+  const copyChatContent = async () => {
+    try {
+      const chatData = {
+        advisorName,
+        totalMessages: chatMessages.length,
+        isTyping: isTypingResponse,
+        timestamp: new Date().toISOString(),
+        messages: chatMessages.map(msg => ({
+          id: msg.id,
+          text: msg.text,
+          timestamp: msg.timestamp.toISOString(),
+          isUser: msg.isUser,
+          timeFormatted: msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        })),
+        sessionInfo: {
+          chatInput,
+          isChatCollapsed,
+          outputsExpanded
+        }
+      };
+      
+      const debugText = `=== CHAT DEBUG INFO ===
+Advisor: ${advisorName}
+Total Messages: ${chatMessages.length}
+Currently Typing: ${isTypingResponse}
+Generated: ${new Date().toISOString()}
+
+=== MESSAGES ===
+${chatMessages.map((msg, index) => 
+  `${index + 1}. [${msg.isUser ? 'USER' : 'ADVISOR'}] ${msg.timestamp.toLocaleTimeString()}
+   ${msg.text}`
+).join('\n\n')}
+
+=== SESSION STATE ===
+Chat Input: "${chatInput}"
+Chat Collapsed: ${isChatCollapsed}
+Outputs Expanded: ${outputsExpanded}
+
+=== RAW JSON ===
+${JSON.stringify(chatData, null, 2)}`;
+
+      await navigator.clipboard.writeText(debugText);
+      console.log('Chat debug info copied to clipboard');
+    } catch (err) {
+      console.error('Failed to copy chat content:', err);
+    }
+  };
   
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const actionsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -179,6 +240,13 @@ export default function OutputsPanel({
     return () => { if (typingIntervalRef.current) clearInterval(typingIntervalRef.current); };
   }, []);
 
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
 
   function startTyping(text: string) {
     if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
@@ -236,6 +304,78 @@ export default function OutputsPanel({
     }, 250);
     if (onTriggerSuccessSequence) {
       onTriggerSuccessSequence();
+    }
+  }
+
+  // Handle chat message sending
+  async function handleSendMessage() {
+    if (!chatInput.trim()) return;
+    
+    const userMessage = {
+      id: Date.now().toString(),
+      text: chatInput.trim(),
+      timestamp: new Date(),
+      isUser: true
+    };
+    
+    // Add user message to chat
+    if (onSendPayloadToChat) {
+      onSendPayloadToChat(chatInput.trim());
+    }
+    
+    setChatInput('');
+    setIsTypingResponse(true);
+    
+    try {
+      // Send to OpenAI with the specified format
+      const response = await fetch('/api/openai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userMessage: chatInput.trim(),
+          chatHistory: chatMessages
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const aiResponse = {
+          id: (Date.now() + 1).toString(),
+          text: data.response || 'No response received',
+          timestamp: new Date(),
+          isUser: false
+        };
+        
+        // Add AI response to chat
+        if (onSendPayloadToChat) {
+          onSendPayloadToChat(data.response);
+        }
+      } else {
+        throw new Error('Failed to get AI response');
+      }
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorResponse = {
+        id: (Date.now() + 1).toString(),
+        text: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date(),
+        isUser: false
+      };
+      
+      if (onSendPayloadToChat) {
+        onSendPayloadToChat('Sorry, I encountered an error. Please try again.');
+      }
+    } finally {
+      setIsTypingResponse(false);
+    }
+  }
+
+  function handleChatKeyPress(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   }
 
@@ -376,6 +516,142 @@ export default function OutputsPanel({
             ))}
           </div>
         )}
+
+        {/* Chat Box */}
+        <div className="mt-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+          {/* Chat Header */}
+          <div 
+            className={`px-3 py-1.5 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors ${isChatCollapsed ? 'rounded-md' : 'border-b border-gray-100 rounded-t-md'}`}
+            onClick={() => setIsChatCollapsed(!isChatCollapsed)}
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <svg
+                  className={`w-4 h-4 text-gray-600 transform transition-transform duration-200 ${isChatCollapsed ? 'rotate-0' : 'rotate-90'}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <span className="text-sm text-gray-700" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                  Chat to {advisorName}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyChatContent();
+                  }}
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                  title="Copy chat debug info"
+                >
+                  <svg 
+                    className="w-4 h-4"
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+                {onClearChat && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClearChat();
+                    }}
+                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                    title="Clear chat"
+                  >
+                    <svg 
+                      className="w-4 h-4"
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Chat Content - Collapsible */}
+          {!isChatCollapsed && (
+            <>
+              {/* Chat Messages */}
+              <div 
+                ref={chatContainerRef}
+                className="h-96 overflow-y-auto p-3 space-y-3"
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              >
+                {chatMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
+                        message.isUser
+                          ? 'bg-blue-500 text-white rounded-br-sm'
+                          : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap">{message.text}</div>
+                      <div className={`text-xs mt-1 ${message.isUser ? 'text-blue-100' : 'text-gray-500'}`}>
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Typing indicator */}
+                {isTypingResponse && (
+                  <div className="flex justify-start">
+                    <div className="bg-gray-100 text-gray-800 rounded-lg rounded-bl-sm px-3 py-2 text-sm">
+                      <div className="flex items-center gap-1">
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Chat Input */}
+              <div className="p-3 border-t border-gray-100">
+                <div className="flex items-center gap-2 w-full">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyPress={handleChatKeyPress}
+                    placeholder="Ask me about design..."
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-0"
+                    style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                    disabled={isTypingResponse}
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!chatInput.trim() || isTypingResponse}
+                    className="flex-shrink-0 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center w-10 h-10"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

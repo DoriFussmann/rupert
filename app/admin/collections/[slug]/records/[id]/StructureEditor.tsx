@@ -269,6 +269,48 @@ export default function StructureEditor({ recordId }: Props) {
     }));
   }
 
+  // Delete topic
+  function deleteTopic(topicIndex: number) {
+    setTree(prev => ({
+      children: prev.children.filter((_, index) => index !== topicIndex)
+    }));
+  }
+
+  // Delete subtopic
+  function deleteSubtopic(topicIndex: number, subtopicIndex: number) {
+    setTree(prev => ({
+      children: prev.children.map((topic, tIndex) =>
+        tIndex === topicIndex
+          ? {
+              ...topic,
+              children: topic.children.filter((_, sIndex) => sIndex !== subtopicIndex)
+            }
+          : topic
+      )
+    }));
+  }
+
+  // Delete question
+  function deleteQuestion(topicIndex: number, subtopicIndex: number, questionIndex: number) {
+    setTree(prev => ({
+      children: prev.children.map((topic, tIndex) =>
+        tIndex === topicIndex
+          ? {
+              ...topic,
+              children: topic.children.map((subtopic, sIndex) =>
+                sIndex === subtopicIndex
+                  ? {
+                      ...subtopic,
+                      children: subtopic.children.filter((_, qIndex) => qIndex !== questionIndex)
+                    }
+                  : subtopic
+              )
+            }
+          : topic
+      )
+    }));
+  }
+
   if (loading && !originalData.title) {
     return <div className="p-6">Loading...</div>;
   }
@@ -308,16 +350,25 @@ export default function StructureEditor({ recordId }: Props) {
           {tree.children.map((topic, topicIndex) => (
             <div key={topic.id} className="border rounded p-4">
               <div className="mb-3">
-                <input
-                  type="text"
-                  value={topic.title}
-                  onChange={(e) => updateTopicTitle(topicIndex, e.target.value)}
-                  className="w-full font-medium border-b border-gray-300 bg-transparent text-sm"
-                  placeholder="Topic title"
-                />
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={topic.title}
+                    onChange={(e) => updateTopicTitle(topicIndex, e.target.value)}
+                    className="flex-1 font-medium border-b border-gray-300 bg-transparent text-sm"
+                    placeholder="Topic title"
+                  />
+                  <button
+                    onClick={() => deleteTopic(topicIndex)}
+                    className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                    title="Delete topic"
+                  >
+                    Delete
+                  </button>
+                </div>
                 <button
                   onClick={() => addSubtopic(topicIndex)}
-                  className="mt-2 bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
+                  className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
                 >
                   Add Subtopic
                 </button>
@@ -326,16 +377,25 @@ export default function StructureEditor({ recordId }: Props) {
               {topic.children.map((subtopic, subtopicIndex) => (
                 <div key={subtopic.id} className="ml-4 border-l-2 border-gray-200 pl-4 mb-3">
                   <div className="mb-2">
-                    <input
-                      type="text"
-                      value={subtopic.title}
-                      onChange={(e) => updateSubtopicTitle(topicIndex, subtopicIndex, e.target.value)}
-                      className="w-full border-b border-gray-300 bg-transparent text-sm"
-                      placeholder="Subtopic title"
-                    />
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="text"
+                        value={subtopic.title}
+                        onChange={(e) => updateSubtopicTitle(topicIndex, subtopicIndex, e.target.value)}
+                        className="flex-1 border-b border-gray-300 bg-transparent text-sm"
+                        placeholder="Subtopic title"
+                      />
+                      <button
+                        onClick={() => deleteSubtopic(topicIndex, subtopicIndex)}
+                        className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                        title="Delete subtopic"
+                      >
+                        Delete
+                      </button>
+                    </div>
                     <button
                       onClick={() => addQuestion(topicIndex, subtopicIndex)}
-                      className="mt-1 bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600"
+                      className="bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600"
                     >
                       Add Question
                     </button>
@@ -343,13 +403,22 @@ export default function StructureEditor({ recordId }: Props) {
 
                   {subtopic.children.map((question, questionIndex) => (
                     <div key={question.id} className="ml-4 mb-2">
-                      <input
-                        type="text"
-                        value={question.text}
-                        onChange={(e) => updateQuestionText(topicIndex, subtopicIndex, questionIndex, e.target.value)}
-                        className="w-full text-xs border-b border-gray-200 bg-transparent"
-                        placeholder="Question text"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={question.text}
+                          onChange={(e) => updateQuestionText(topicIndex, subtopicIndex, questionIndex, e.target.value)}
+                          className="flex-1 text-xs border-b border-gray-200 bg-transparent"
+                          placeholder="Question text"
+                        />
+                        <button
+                          onClick={() => deleteQuestion(topicIndex, subtopicIndex, questionIndex)}
+                          className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                          title="Delete question"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
