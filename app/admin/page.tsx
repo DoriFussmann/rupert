@@ -78,6 +78,10 @@ export default function AdminPage() {
   const [advisorRecords, setAdvisorRecords] = useState<RecordT[]>([]);
   const [advisorRDraft, setAdvisorRDraft] = useState<Record<string, unknown>>({});
   const [advisorFDraft, setAdvisorFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
+  const [selectedAdvisor, setSelectedAdvisor] = useState<RecordT | null>(null);
+  const [editingAdvisor, setEditingAdvisor] = useState(false);
+  const [editAdvisorData, setEditAdvisorData] = useState<Record<string, unknown>>({});
+  const [advisorAssignedPages, setAdvisorAssignedPages] = useState<string[]>([]);
 
   // STRUCTURES COLLECTION
   const [structureFields, setStructureFields] = useState<Field[]>([]);
@@ -108,13 +112,10 @@ export default function AdminPage() {
   const [editToolData, setEditToolData] = useState<Record<string, unknown>>({});
 
   // MODAL STATES
-  const [selectedAdvisor, setSelectedAdvisor] = useState<RecordT | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<RecordT | null>(null);
   const [selectedTask, setSelectedTask] = useState<RecordT | null>(null);
-  const [editingAdvisor, setEditingAdvisor] = useState(false);
   const [editingCompany, setEditingCompany] = useState(false);
   const [editingTask, setEditingTask] = useState(false);
-  const [editAdvisorData, setEditAdvisorData] = useState<Record<string, unknown>>({});
   const [editCompanyData, setEditCompanyData] = useState<Record<string, unknown>>({});
   const [editTaskData, setEditTaskData] = useState<Record<string, unknown>>({});
 
@@ -186,6 +187,16 @@ export default function AdminPage() {
     const draft: Record<string, unknown> = {};
     f.forEach(x => { draft[x.key] = ""; });
     setToolsRDraft(draft);
+  }
+
+  function handleAdvisorPageToggle(pageId: string) {
+    setAdvisorAssignedPages(prev => {
+      if (prev.includes(pageId)) {
+        return prev.filter(id => id !== pageId);
+      } else {
+        return [...prev, pageId];
+      }
+    });
   }
 
   useEffect(() => { 
@@ -1063,168 +1074,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Advisor Details Modal */}
-      {selectedAdvisor && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
-        }}>
-          <div style={{
-            width: '100%', maxWidth: '896px', aspectRatio: '16/9',
-            backgroundColor: 'white', borderRadius: '16px',
-            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'
-          }}>
-            <div className="p-6 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-normal">{editingAdvisor ? 'Edit Advisor' : 'Advisor Details'}</h3>
-                <div className="flex items-center gap-2">
-                  {!editingAdvisor && (
-                    <button 
-                      onClick={() => {
-                        setEditAdvisorData(selectedAdvisor.data || {});
-                        setEditingAdvisor(true);
-                      }}
-                      className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
-                    >
-                      Edit
-                    </button>
-                  )}
-                  <button onClick={() => setSelectedAdvisor(null)} className="text-gray-400 hover:text-gray-600">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 space-y-4 overflow-y-auto">
-                {advisorFields.map(field => (
-                  <div key={field.id}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-                    {editingAdvisor ? (
-                      field.type === 'image' ? (
-                        <div className="space-y-2">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                try {
-                                  const formData = new FormData();
-                                  formData.append('file', file);
-                                  
-                                  const response = await fetch('/api/upload', {
-                                    method: 'POST',
-                                    body: formData,
-                                  });
-                                  
-                                  if (response.ok) {
-                                    const result = await response.json();
-                                    setEditAdvisorData({...editAdvisorData, [field.key]: result.filePath});
-                                  } else {
-                                    const error = await response.json();
-                                    alert(`Upload failed: ${error.error}`);
-                                  }
-                                } catch (error) {
-                                  console.error('Upload error:', error);
-                                  alert('Upload failed. Please try again.');
-                                }
-                              }
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          />
-                          {editAdvisorData[field.key] && (
-                            <div className="space-y-2">
-                              <div className="text-sm text-gray-600">
-                                Current: {String(editAdvisorData[field.key])}
-                              </div>
-                              {String(editAdvisorData[field.key]).startsWith('/uploads/') && (
-                                <img 
-                                  src={String(editAdvisorData[field.key])} 
-                                  alt="Preview" 
-                                  className="w-20 h-20 object-cover rounded-md border"
-                                />
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : field.key === 'knowledgeFeed' || field.key === 'prompt' ? (
-                        <textarea
-                          value={String(editAdvisorData[field.key] || "")}
-                          onChange={(e) => setEditAdvisorData({...editAdvisorData, [field.key]: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          rows={4}
-                          placeholder={field.key === 'prompt' ? 'Enter AI prompt for this advisor...' : 'Enter knowledge feed content...'}
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={String(editAdvisorData[field.key] || "")}
-                          onChange={(e) => setEditAdvisorData({...editAdvisorData, [field.key]: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        />
-                      )
-                    ) : (
-                      <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                        {field.type === 'image' ? (
-                          selectedAdvisor.data?.[field.key] ? (
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span>📷</span>
-                                <span>{String(selectedAdvisor.data[field.key])}</span>
-                              </div>
-                              {String(selectedAdvisor.data[field.key]).startsWith('/uploads/') && (
-                                <img 
-                                  src={String(selectedAdvisor.data[field.key])} 
-                                  alt={`${selectedAdvisor.data?.name || 'Advisor'} image`}
-                                  className="w-24 h-24 object-cover rounded-md border"
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            "No image uploaded"
-                          )
-                        ) : field.key === 'knowledgeFeed' || field.key === 'prompt' ? (
-                          <pre className="whitespace-pre-wrap text-sm">
-                            {String(selectedAdvisor.data?.[field.key] || "No data")}
-                          </pre>
-                        ) : (
-                          String(selectedAdvisor.data?.[field.key] || "No data")
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {editingAdvisor && (
-                <div className="mt-6 flex gap-2">
-                  <button
-                    onClick={async () => {
-                      await apiJson(`/api/collections/advisors/records/${selectedAdvisor.id}`, { 
-                        method: "PUT", 
-                        body: JSON.stringify({ data: editAdvisorData }) 
-                      });
-                      setEditingAdvisor(false);
-                      await loadAdvisors();
-                      setSelectedAdvisor({...selectedAdvisor, data: editAdvisorData});
-                    }}
-                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                  >
-                    Save Changes
-                  </button>
-                  <button
-                    onClick={() => setEditingAdvisor(false)}
-                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Company Details Modal */}
       {selectedCompany && (
@@ -1561,6 +1410,175 @@ export default function AdminPage() {
                     className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
                   >
                     Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advisor Details Modal */}
+      {selectedAdvisor && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
+        }}>
+          <div style={{
+            width: '100%', maxWidth: '896px', aspectRatio: '16/9',
+            backgroundColor: 'white', borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'
+          }}>
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">Advisor Details</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingAdvisor(true);
+                      setEditAdvisorData(selectedAdvisor.data || {});
+                      // Load current page assignments
+                      const currentAssignments = (selectedAdvisor.data as any)?.assignedPages || [];
+                      setAdvisorAssignedPages(Array.isArray(currentAssignments) ? currentAssignments : []);
+                    }}
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setSelectedAdvisor(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                {advisorFields.map(field => (
+                  <div key={field.id}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                    {editingAdvisor ? (
+                      field.type === 'image' ? (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={String(editAdvisorData[field.key] || '')}
+                            onChange={e => setEditAdvisorData({...editAdvisorData, [field.key]: e.target.value})}
+                            placeholder="Image URL or filename"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          {editAdvisorData[field.key] && (
+                            <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden">
+                              <img 
+                                src={String(editAdvisorData[field.key]).startsWith('http') ? String(editAdvisorData[field.key]) : `/uploads/${editAdvisorData[field.key]}`}
+                                alt="Preview" 
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <textarea
+                          value={String(editAdvisorData[field.key] || '')}
+                          onChange={e => setEditAdvisorData({...editAdvisorData, [field.key]: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          rows={field.key === 'prompt' ? 4 : 2}
+                        />
+                      )
+                    ) : (
+                      field.type === 'image' && selectedAdvisor.data?.[field.key] ? (
+                        <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden">
+                          <img 
+                            src={String(selectedAdvisor.data[field.key]).startsWith('http') ? String(selectedAdvisor.data[field.key]) : `/uploads/${selectedAdvisor.data[field.key]}`}
+                            alt={field.label} 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                          {String(selectedAdvisor.data?.[field.key] || 'Not set')}
+                        </div>
+                      )
+                    )}
+                  </div>
+                ))}
+
+                {/* Tools & Pages Assignment Section */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Assigned Tools & Pages</label>
+                  {editingAdvisor ? (
+                    <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
+                      {toolsRecords.map(page => (
+                        <label key={page.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={advisorAssignedPages.includes(page.id)}
+                            onChange={() => handleAdvisorPageToggle(page.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">
+                            {String((page.data as any)?.name || 'Unnamed Page')}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                      {(() => {
+                        const assignments = (selectedAdvisor.data as any)?.assignedPages || [];
+                        const assignedPageNames = toolsRecords
+                          .filter(page => assignments.includes(page.id))
+                          .map(page => String((page.data as any)?.name || 'Unnamed Page'));
+                        return assignedPageNames.length > 0 ? assignedPageNames.join(', ') : 'No pages assigned';
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {editingAdvisor && (
+                <div className="flex justify-between items-center p-6 border-t border-gray-200">
+                  <button
+                    onClick={async () => {
+                      // Include assigned pages in the update
+                      const updatedData = {
+                        ...editAdvisorData,
+                        assignedPages: advisorAssignedPages
+                      };
+                      await apiJson(`/api/collections/advisors/records/${selectedAdvisor.id}`, { 
+                        method: 'PUT', 
+                        body: JSON.stringify({ data: updatedData }) 
+                      });
+                      setEditingAdvisor(false);
+                      await loadAdvisors();
+                      setSelectedAdvisor({...selectedAdvisor, data: updatedData});
+                    }}
+                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setEditingAdvisor(false)}
+                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm('Delete this advisor?')) {
+                        await apiJson(`/api/collections/advisors/records/${selectedAdvisor.id}`, { method: 'DELETE' });
+                        setSelectedAdvisor(null);
+                        await loadAdvisors();
+                      }
+                    }}
+                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  >
+                    Delete
                   </button>
                 </div>
               )}

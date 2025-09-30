@@ -1,31 +1,85 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+
+interface PageRecord {
+  id: string;
+  data?: {
+    name?: string;
+    [key: string]: unknown;
+  };
+}
 
 export default function NavigationHeader() {
   const pathname = usePathname();
+  const [pages, setPages] = useState<PageRecord[]>([]);
+
+  // Load pages from Tools & Pages collection
+  useEffect(() => {
+    async function loadPages() {
+      try {
+        const response = await fetch('/api/collections/tools-pages/records');
+        if (response.ok) {
+          const records: PageRecord[] = await response.json();
+          setPages(records);
+        }
+      } catch (error) {
+        console.error('Error loading pages:', error);
+      }
+    }
+    loadPages();
+  }, []);
+
+  // Function to convert page name to URL slug
+  const getPageSlug = (pageName: string) => {
+    return pageName
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+  };
+
+  // Function to get page emoji based on name
+  const getPageEmoji = (pageName: string) => {
+    const name = pageName.toLowerCase();
+    if (name.includes('home')) return '🏠';
+    if (name.includes('design')) return '🎨';
+    if (name.includes('data')) return '🗺️';
+    if (name.includes('financial') || name.includes('finance')) return '💰';
+    if (name.includes('admin')) return '⚙️';
+    if (name.includes('login')) return '🔐';
+    return '📄'; // Default emoji for other pages
+  };
 
   // Function to get page display name from pathname
   const getPageDisplayName = (path: string) => {
+    // First check if it's a known static page
     switch (path) {
-      case '/data-mapper':
-        return 'Data Mapper';
-      case '/design-master':
-        return 'Design Master';
       case '/admin':
         return 'Admin';
       case '/login':
         return 'Login';
       case '/':
         return 'Home';
-      default:
-        // Convert path like /some-page to "Some Page"
-        return path
-          .replace('/', '')
-          .split('-')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ') || 'Home';
     }
+    
+    // For dynamic pages, try to find the page name from the Tools & Pages collection
+    const slug = path.replace('/', '');
+    const matchingPage = pages.find(page => {
+      const pageName = String(page.data?.name || '');
+      return getPageSlug(pageName) === slug;
+    });
+    
+    if (matchingPage) {
+      return String(matchingPage.data?.name || '');
+    }
+    
+    // Fallback: Convert path like /some-page to "Some Page"
+    return path
+      .replace('/', '')
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ') || 'Home';
   };
 
   return (
@@ -61,18 +115,39 @@ export default function NavigationHeader() {
               </button>
               
               {/* Pages Dropdown Menu */}
-              <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                 <div className="py-2">
+                  {/* Always show Home first */}
                   <Link href="/" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
                     🏠 Home
                   </Link>
-                  <Link href="/design-master" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                    🎨 Design Master
-                  </Link>
-                  <Link href="/data-mapper" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                    🗺️ Data Mapper
-                  </Link>
+                  
+                  {/* Dynamic pages from Tools & Pages collection */}
+                  {pages
+                    .filter(page => {
+                      const name = String(page.data?.name || '').toLowerCase();
+                      return name !== 'home' && name !== 'admin' && name !== 'login';
+                    })
+                    .sort((a, b) => String(a.data?.name || '').localeCompare(String(b.data?.name || '')))
+                    .map(page => {
+                      const pageName = String(page.data?.name || '');
+                      const slug = getPageSlug(pageName);
+                      const emoji = getPageEmoji(pageName);
+                      
+                      return (
+                        <Link 
+                          key={page.id}
+                          href={`/${slug}`} 
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        >
+                          {emoji} {pageName}
+                        </Link>
+                      );
+                    })}
+                  
                   <div className="border-t border-gray-100 my-1"></div>
+                  
+                  {/* Always show Admin and Login at bottom */}
                   <Link href="/admin" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
                     ⚙️ Admin Dashboard
                   </Link>
@@ -94,7 +169,7 @@ export default function NavigationHeader() {
             </button>
             
             {/* Dropdown Menu */}
-            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <div className="py-2">
                 <Link href="/login" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
                   Sign Up / Log In
