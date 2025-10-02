@@ -16,6 +16,7 @@ interface OutputsPanelProps {
   onSendPayloadToChat?: (payload: string) => void;
   onClearChat?: () => void;
   advisorName?: string;
+  showChat?: boolean;
 }
 
 export default function OutputsPanel({ 
@@ -38,8 +39,27 @@ export default function OutputsPanel({
   chatMessages = [],
   onSendPayloadToChat,
   onClearChat,
-  advisorName = 'Advisor'
+  advisorName = 'Advisor',
+  showChat = true,
 }: OutputsPanelProps) {
+  // Tasks selection state (for left column)
+  const [tasks, setTasks] = useState<Array<{ id: string; data?: Record<string, unknown> }>>([]);
+  const [selectedTask1, setSelectedTask1] = useState("");
+  const [selectedTask2, setSelectedTask2] = useState("");
+  const [selectedTask3, setSelectedTask3] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/collections/tasks/records', { headers: { 'Content-Type': 'application/json' } });
+        if (!res.ok) return;
+        const records: Array<{ id: string; data?: Record<string, unknown> }> = await res.json();
+        setTasks(records);
+      } catch (err) {
+        console.error('Failed to load tasks', err);
+      }
+    })();
+  }, []);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [howItWorksStep, setHowItWorksStep] = useState(0);
   const [typedText, setTypedText] = useState("");
@@ -424,42 +444,140 @@ ${JSON.stringify(chatData, null, 2)}`;
             </button>
           </div>
         </div>
-        {(showHowItWorks || isSimulating || simulateResult) && (
-          <div className="p-4">
-            {showHowItWorks && (
-              <div>
-                <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
-                  {typedText}
-                  {isTyping && <span className="inline-block w-2 h-4 bg-gray-400 ml-1 align-baseline animate-pulse" />}
+        {/* Body: two-column layout (left = 25% with task dropdowns, right = 75% content) */}
+        <div className="p-4">
+          <div className="flex gap-4">
+            {/* Left column: Task selections (25%) */}
+            <div className="w-1/4">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Task 1</label>
+                  <select className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-10" value={selectedTask1} onChange={(e)=>setSelectedTask1(e.target.value)}>
+                    <option value="">Select Task</option>
+                    {tasks.map(t => (
+                      <option key={t.id} value={t.id}>{String(t.data?.name || 'Untitled Task')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Task 2</label>
+                  <select className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-10" value={selectedTask2} onChange={(e)=>setSelectedTask2(e.target.value)}>
+                    <option value="">Select Task</option>
+                    {tasks.map(t => (
+                      <option key={t.id} value={t.id}>{String(t.data?.name || 'Untitled Task')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Task 3</label>
+                  <select className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm h-10" value={selectedTask3} onChange={(e)=>setSelectedTask3(e.target.value)}>
+                    <option value="">Select Task</option>
+                    {tasks.map(t => (
+                      <option key={t.id} value={t.id}>{String(t.data?.name || 'Untitled Task')}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-            )}
-
-            {/* Simulation states */}
-            {isSimulating && (
-              <div className="my-3 flex justify-center">
-                <div className="w-1/2">
-                  <div className="border border-gray-200 bg-gray-50 rounded-md h-9 px-4 flex items-center justify-center overflow-hidden">
-                    <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
-                      {loadingMessages[loadingMessageIndex]}
+            </div>
+            {/* Middle column: content boxes for selected tasks (25%) */}
+            <div className="w-1/4">
+              <div className="space-y-3">
+                {[selectedTask1, selectedTask2, selectedTask3].map((sel, idx) => {
+                  const task = tasks.find(t => t.id === sel);
+                  const title = String(task?.data?.name || 'No task selected');
+                  const prompt = String((task?.data as any)?.taskPrompt || '');
+                  return (
+                    <div key={`task-box-${idx}`} className="border border-gray-200 rounded-md px-2 h-10 flex items-center overflow-hidden bg-gray-50">
+                      <div className="flex items-center gap-2 w-full">
+                        <span className="text-xs text-gray-600 font-medium flex-shrink-0">{`Task ${idx + 1}`}</span>
+                        <span className="text-xs text-gray-700 truncate" title={prompt || title}>
+                          {prompt || title}
+                        </span>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Right column: existing content (50%) */}
+            <div className="w-2/4">
+              {(showHowItWorks || isSimulating || simulateResult) && (
+                <div>
+                  {showHowItWorks && (
+                    <div>
+                      <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
+                        {typedText}
+                        {isTyping && <span className="inline-block w-2 h-4 bg-gray-400 ml-1 align-baseline animate-pulse" />}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Simulation states */}
+                  {isSimulating && (
+                    <div className="my-3 flex justify-center">
+                      <div className="w-1/2">
+                        <div className="border border-gray-200 bg-gray-50 rounded-md h-9 px-4 flex items-center justify-center overflow-hidden">
+                          <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
+                            {loadingMessages[loadingMessageIndex]}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {!isSimulating && simulateResult && (
+                    <div className="mt-3 text-sm text-gray-800">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                        <span>Simulation complete in {Math.round(simulateResult.elapsedMs)} ms</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Chat Box (minimal) */}
+              {showChat && (
+              <div className="border border-gray-200 rounded-md">
+                <div 
+                  ref={chatContainerRef}
+                  className="h-96 overflow-y-auto p-3 space-y-2 text-sm"
+                >
+                  {chatMessages.map((m) => (
+                    <div key={m.id} className={`flex ${m.isUser ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`px-2 py-1 rounded ${m.isUser ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                        {m.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-gray-100 p-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyPress={handleChatKeyPress}
+                      placeholder="Type a message..."
+                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                      disabled={isTypingResponse}
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!chatInput.trim() || isTypingResponse}
+                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
+                    >
+                      Send
+                    </button>
                   </div>
                 </div>
               </div>
-            )}
-            {!isSimulating && simulateResult && (
-              <div className="mt-3 text-sm text-gray-800">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
-                  <span>Simulation complete in {Math.round(simulateResult.elapsedMs)} ms</span>
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        )}
+        </div>
         {showHowItWorks && (
           <div className="absolute right-3 bottom-3">
             {howItWorksStep + 1 >= howItWorksTexts.length ? (
@@ -517,141 +635,7 @@ ${JSON.stringify(chatData, null, 2)}`;
           </div>
         )}
 
-        {/* Chat Box */}
-        <div className="mt-4 border border-gray-200 rounded-lg bg-white shadow-sm">
-          {/* Chat Header */}
-          <div 
-            className={`px-3 py-1.5 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors ${isChatCollapsed ? 'rounded-md' : 'border-b border-gray-100 rounded-t-md'}`}
-            onClick={() => setIsChatCollapsed(!isChatCollapsed)}
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <svg
-                  className={`w-4 h-4 text-gray-600 transform transition-transform duration-200 ${isChatCollapsed ? 'rotate-0' : 'rotate-90'}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                <span className="text-sm text-gray-700" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-                  Chat to {advisorName}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    copyChatContent();
-                  }}
-                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
-                  title="Copy chat debug info"
-                >
-                  <svg 
-                    className="w-4 h-4"
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-                {onClearChat && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClearChat();
-                    }}
-                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
-                    title="Clear chat"
-                  >
-                    <svg 
-                      className="w-4 h-4"
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Chat Content - Collapsible */}
-          {!isChatCollapsed && (
-            <>
-              {/* Chat Messages */}
-              <div 
-                ref={chatContainerRef}
-                className="h-96 overflow-y-auto p-3 space-y-3"
-                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-              >
-                {chatMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
-                        message.isUser
-                          ? 'bg-blue-500 text-white rounded-br-sm'
-                          : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                      }`}
-                    >
-                      <div className="whitespace-pre-wrap">{message.text}</div>
-                      <div className={`text-xs mt-1 ${message.isUser ? 'text-blue-100' : 'text-gray-500'}`}>
-                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                {/* Typing indicator */}
-                {isTypingResponse && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-100 text-gray-800 rounded-lg rounded-bl-sm px-3 py-2 text-sm">
-                      <div className="flex items-center gap-1">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Chat Input */}
-              <div className="p-3 border-t border-gray-100">
-                <div className="flex items-center gap-2 w-full">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyPress={handleChatKeyPress}
-                    placeholder="Ask me about design..."
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-0"
-                    style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-                    disabled={isTypingResponse}
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!chatInput.trim() || isTypingResponse}
-                    className="flex-shrink-0 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center w-10 h-10"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        
       </div>
     </div>
   );
