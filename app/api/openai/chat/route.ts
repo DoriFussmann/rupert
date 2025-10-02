@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Chat API: Received request');
     
-    const { userMessage } = await request.json();
+    const { userMessage, chatHistory = [] } = await request.json();
     console.log('Chat API: User message received:', userMessage ? 'Yes' : 'No');
     
     if (!userMessage) {
@@ -18,19 +18,167 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
-    // For now, return a mock response until OpenAI integration is working
-    const mockResponses = [
-      "I'd be happy to help you with your financial planning. Could you tell me more about your current financial situation?",
-      "That's a great question about budgeting. Let me provide some guidance on creating an effective budget.",
-      "I can help you analyze your financial goals. What specific areas would you like to focus on?",
-      "Based on your question, I recommend starting with a detailed assessment of your income and expenses.",
-      "I'm here to help with your financial planning needs. What would you like to discuss first?"
-    ];
+    // Parse the task content to extract model and parameters
+    let model = 'gpt-4'; // default fallback
+    let temperature = 0.7;
+    let maxTokens = 2000;
+    let messages = [];
+
+    try {
+      // Check if the userMessage contains a curl command or JSON payload
+      if (userMessage.includes('curl') && userMessage.includes('api.openai.com')) {
+        // Extract JSON from curl command - handle both single and double quotes
+        const jsonMatch = userMessage.match(/-d\s+['"`]([^'"`]+)['"`]/);
+        if (jsonMatch) {
+          const payload = JSON.parse(jsonMatch[1]);
+          model = payload.model || 'gpt-4';
+          temperature = payload.temperature || 0.7;
+          maxTokens = payload.max_tokens || 2000;
+          
+          // Use the messages from the payload if they exist and are valid
+          if (payload.messages && Array.isArray(payload.messages) && payload.messages.length > 0) {
+            messages = payload.messages;
+          } else {
+            messages = [
+              {
+                role: 'system',
+                content: 'You are a financial modeling expert and business advisor. Provide detailed, actionable insights and analysis. Be specific and technical in your responses. Focus on practical implementation and concrete next steps.'
+              },
+              {
+                role: 'user',
+                content: userMessage
+              }
+            ];
+          }
+        }
+      } else if (userMessage.includes('"model"')) {
+        // Try to parse as JSON payload
+        const payload = JSON.parse(userMessage);
+        model = payload.model || 'gpt-4';
+        temperature = payload.temperature || 0.7;
+        maxTokens = payload.max_tokens || 2000;
+        
+        if (payload.messages && Array.isArray(payload.messages) && payload.messages.length > 0) {
+          messages = payload.messages;
+        } else {
+          messages = [
+            {
+              role: 'system',
+              content: 'You are a financial modeling expert and business advisor. Provide detailed, actionable insights and analysis. Be specific and technical in your responses. Focus on practical implementation and concrete next steps.'
+            },
+            {
+              role: 'user',
+              content: userMessage
+            }
+          ];
+        }
+      } else {
+        // Fallback to default structure
+        messages = [
+          {
+            role: 'system',
+            content: 'You are a financial modeling expert and business advisor. Provide detailed, actionable insights and analysis. Be specific and technical in your responses. Focus on practical implementation and concrete next steps.'
+          },
+          ...chatHistory,
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ];
+      }
+    } catch (parseError) {
+      console.log('Chat API: Could not parse payload, using defaults:', parseError);
+      // Fallback to default structure
+      messages = [
+        {
+          role: 'system',
+          content: 'You are a financial modeling expert and business advisor. Provide detailed, actionable insights and analysis. Be specific and technical in your responses. Focus on practical implementation and concrete next steps.'
+        },
+        ...chatHistory,
+        {
+          role: 'user',
+          content: userMessage
+        }
+      ];
+    }
+
+    // Validate messages array
+    if (!Array.isArray(messages) || messages.length === 0) {
+      console.log('Chat API: Invalid messages array, using fallback');
+      messages = [
+        {
+          role: 'system',
+          content: 'You are a financial modeling expert and business advisor. Provide detailed, actionable insights and analysis. Be specific and technical in your responses. Focus on practical implementation and concrete next steps.'
+        },
+        {
+          role: 'user',
+          content: userMessage
+        }
+      ];
+    }
+
+    // Validate each message has required fields
+    messages = messages.filter(msg => msg && msg.role && msg.content).map(msg => ({
+      role: msg.role,
+      content: String(msg.content)
+    }));
+
+    console.log('Chat API: Using model:', model, 'temperature:', temperature, 'maxTokens:', maxTokens);
+
+    // Make actual API call to OpenAI
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        temperature: temperature,
+        max_tokens: maxTokens,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0
+      })
+    });
+
+    if (!openaiResponse.ok) {
+      const errorData = await openaiResponse.json().catch(() => ({}));
+      console.error('OpenAI API error:', {
+        status: openaiResponse.status,
+        statusText: openaiResponse.statusText,
+        errorData,
+        requestBody: {
+          model,
+          messages,
+          temperature,
+          max_tokens: maxTokens
+        }
+      });
+      return NextResponse.json(
+        { 
+          error: 'OpenAI API error', 
+          details: errorData.error?.message || 'Unknown error',
+          status: openaiResponse.status,
+          requestBody: {
+            model,
+            messages,
+            temperature,
+            max_tokens: maxTokens
+          }
+        },
+        { status: openaiResponse.status }
+      );
+    }
+
+    const openaiData = await openaiResponse.json();
+    const response = openaiData.choices?.[0]?.message?.content || 'No response received';
     
-    const randomResponse = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+    console.log('Chat API: OpenAI response received, length:', response.length);
     
     return NextResponse.json({
-      response: randomResponse,
+      response: response,
       success: true
     });
 

@@ -45,6 +45,7 @@ export default function NavigationHeader() {
     if (name.includes('home')) return '🏠';
     if (name.includes('design')) return '🎨';
     if (name.includes('data')) return '🗺️';
+    if (name.includes('model')) return '💰';
     if (name.includes('financial') || name.includes('finance')) return '💰';
     if (name.includes('admin')) return '⚙️';
     if (name.includes('login')) return '🔐';
