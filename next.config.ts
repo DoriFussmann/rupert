@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
     // Optional: unblock builds even if there are TS errors (we can re-enable later)
     ignoreBuildErrors: true,
   },
+  async redirects() {
+    return [
+      {
+        source: '/financial-model-builder',
+        destination: '/model-builder',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
