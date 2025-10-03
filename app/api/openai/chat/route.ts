@@ -5,17 +5,93 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Chat API: Received request');
     
-    const { userMessage, chatHistory = [] } = await request.json();
-    console.log('Chat API: User message received:', userMessage ? 'Yes' : 'No');
+    const body = await request.json();
+    console.log('Chat API: Request body keys:', Object.keys(body));
     
-    if (!userMessage) {
-      return NextResponse.json({ error: 'User message is required' }, { status: 400 });
-    }
-
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
       console.error('Chat API: OpenAI API key not found');
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+
+    // Check if this is a direct OpenAI payload (from Model Builder)
+    if (body.messages && Array.isArray(body.messages)) {
+      console.log('Chat API: Direct OpenAI payload detected');
+      
+      const model = body.model || 'gpt-4';
+      const isO1Model = model.includes('o1') || model.includes('gpt-5');
+      
+      // Build the OpenAI request from the payload
+      const openaiRequest: any = {
+        model: model,
+        messages: body.messages,
+      };
+
+      // O1 models (gpt-5) require max_completion_tokens instead of max_tokens
+      const maxTokensValue = body.max_tokens || body.maxTokens || 2000;
+      if (isO1Model) {
+        openaiRequest.max_completion_tokens = maxTokensValue;
+        // O1 models don't support temperature, top_p, or response_format
+        console.log('Chat API: Using O1 model settings');
+      } else {
+        openaiRequest.max_tokens = maxTokensValue;
+        openaiRequest.temperature = body.temperature !== undefined ? body.temperature : 0.7;
+        if (body.top_p !== undefined) openaiRequest.top_p = body.top_p;
+        if (body.response_format) openaiRequest.response_format = body.response_format;
+      }
+
+      // Add optional parameters if present
+      if (body.store !== undefined) openaiRequest.store = body.store;
+
+      console.log('Chat API: Making OpenAI request with model:', openaiRequest.model);
+
+      // Make actual API call to OpenAI
+      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(openaiRequest)
+      });
+
+      if (!openaiResponse.ok) {
+        const errorData = await openaiResponse.json().catch(() => ({}));
+        console.error('OpenAI API error:', {
+          status: openaiResponse.status,
+          statusText: openaiResponse.statusText,
+          errorData,
+          requestBody: openaiRequest
+        });
+        return NextResponse.json(
+          { 
+            error: 'OpenAI API error', 
+            details: errorData.error?.message || 'Unknown error',
+            status: openaiResponse.status,
+            requestBody: openaiRequest
+          },
+          { status: openaiResponse.status }
+        );
+      }
+
+      const openaiData = await openaiResponse.json();
+      const response = openaiData.choices?.[0]?.message?.content || 'No response received';
+      
+      console.log('Chat API: OpenAI response received, length:', response.length);
+      
+      return NextResponse.json({
+        response: response,
+        success: true,
+        fullResponse: openaiData
+      });
+    }
+
+    // Legacy handling for chat interface with userMessage
+    const { userMessage, chatHistory = [] } = body;
+    console.log('Chat API: User message received:', userMessage ? 'Yes' : 'No');
+    
+    if (!userMessage) {
+      return NextResponse.json({ error: 'User message or messages array is required' }, { status: 400 });
     }
 
     // Parse the task content to extract model and parameters

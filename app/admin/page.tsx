@@ -111,6 +111,15 @@ export default function AdminPage() {
   const [editingTool, setEditingTool] = useState(false);
   const [editToolData, setEditToolData] = useState<Record<string, unknown>>({});
 
+  // SYSTEM PROMPTS COLLECTION
+  const [systemPromptFields, setSystemPromptFields] = useState<Field[]>([]);
+  const [systemPromptRecords, setSystemPromptRecords] = useState<RecordT[]>([]);
+  const [systemPromptRDraft, setSystemPromptRDraft] = useState<Record<string, unknown>>({});
+  const [systemPromptFDraft, setSystemPromptFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
+  const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<RecordT | null>(null);
+  const [editingSystemPrompt, setEditingSystemPrompt] = useState(false);
+  const [editSystemPromptData, setEditSystemPromptData] = useState<Record<string, unknown>>({});
+
   // MODAL STATES
   const [selectedCompany, setSelectedCompany] = useState<RecordT | null>(null);
   const [selectedTask, setSelectedTask] = useState<RecordT | null>(null);
@@ -148,6 +157,16 @@ export default function AdminPage() {
     const draft: Record<string, unknown> = {};
     f.forEach(x => { draft[x.key] = ""; });
     setStructureRDraft(draft);
+  }
+
+  async function loadSystemPrompts() {
+    const f: Field[] = await apiJson(`/api/collections/system-prompts/fields`);
+    setSystemPromptFields(f);
+    const r: RecordT[] = await apiJson(`/api/collections/system-prompts/records`);
+    setSystemPromptRecords(r);
+    const draft: Record<string, unknown> = {};
+    f.forEach(x => { draft[x.key] = ""; });
+    setSystemPromptRDraft(draft);
   }
 
   async function loadCompanies() {
@@ -217,6 +236,7 @@ export default function AdminPage() {
     loadUsers(); 
     loadAdvisors();
     loadStructures();
+    loadSystemPrompts();
     loadCompanies();
     loadTasks();
     loadCompaniesList();
@@ -316,6 +336,14 @@ export default function AdminPage() {
     }
   }
 
+  // SYSTEM PROMPTS: delete record
+  async function deleteSystemPromptRecord(id: string) {
+    if (confirm("Are you sure you want to delete this system prompt?")) {
+      await apiJson(`/api/collections/system-prompts/records/${id}`, { method: "DELETE" });
+      await loadSystemPrompts();
+    }
+  }
+
   async function addField() {
     await apiJson(`/api/collections/${activeSlug}/fields`, { method: "POST", body: JSON.stringify(fDraft) });
     setFDraft({ label:"", key:"", type:"text", required:false, order:0 }); await loadCollection(activeSlug);
@@ -332,7 +360,7 @@ export default function AdminPage() {
       <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
         <div className="space-y-6">
 
-      <Section title="Users" defaultOpen={true}>
+      <Section title="Users" defaultOpen={false}>
         <div className="grid md:grid-cols-3 gap-3">
           <TextInput placeholder="Email" value={uEmail} onChange={(e)=>setUEmail(e.target.value)} />
           <TextInput placeholder="Name (optional)" value={uName} onChange={(e)=>setUName(e.target.value)} />
@@ -642,6 +670,57 @@ export default function AdminPage() {
                         if (confirm("Are you sure you want to delete this structure?")) {
                           await apiJson(`/api/collections/structures/records/${r.id}`, { method: "DELETE" });
                           await loadStructures();
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="System Prompts">
+        <div className="grid md:grid-cols-3 gap-2 mb-3">
+          {systemPromptFields.map(f => (
+            <TextInput key={f.id} placeholder={f.label} value={systemPromptRDraft[f.key] ?? ""} onChange={e=>setSystemPromptRDraft({ ...systemPromptRDraft, [f.key]: e.target.value })} />
+          ))}
+          <div className="md:col-span-3">
+            <button className="nb-btn nb-btn-primary" onClick={async () => {
+              await apiJson(`/api/collections/system-prompts/records`, { method: "POST", body: JSON.stringify({ data: systemPromptRDraft }) });
+              await loadSystemPrompts();
+            }}>Add System Prompt</button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="nb-table">
+            <thead>
+              <tr className="border-b border-slate-200">
+                {systemPromptFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
+                <th className="nb-th">Created</th>
+                <th className="nb-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {systemPromptRecords.map(r=>(
+                <tr 
+                  key={r.id} 
+                  onClick={() => setSelectedSystemPrompt(r)}
+                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  {systemPromptFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                  <td className="nb-td">
+                    <button 
+                      className="text-red-600 underline hover:text-red-800" 
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm("Are you sure you want to delete this system prompt?")) {
+                          await apiJson(`/api/collections/system-prompts/records/${r.id}`, { method: "DELETE" });
+                          await loadSystemPrompts();
                         }
                       }}
                     >
@@ -1574,6 +1653,104 @@ export default function AdminPage() {
                         await apiJson(`/api/collections/advisors/records/${selectedAdvisor.id}`, { method: 'DELETE' });
                         setSelectedAdvisor(null);
                         await loadAdvisors();
+                      }
+                    }}
+                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* System Prompt Modal */}
+      {selectedSystemPrompt && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
+        }}>
+          <div style={{
+            width: '100%', maxWidth: '896px', aspectRatio: '16/9',
+            backgroundColor: 'white', borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'
+          }}>
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">System Prompt Details</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingSystemPrompt(true);
+                      setEditSystemPromptData(selectedSystemPrompt.data || {});
+                    }}
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setSelectedSystemPrompt(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                {systemPromptFields.map(field => (
+                  <div key={field.id}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                    {editingSystemPrompt ? (
+                      <textarea
+                        value={String(editSystemPromptData[field.key] || '')}
+                        onChange={e => setEditSystemPromptData({...editSystemPromptData, [field.key]: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={field.key === 'content' ? 8 : 2}
+                      />
+                    ) : (
+                      <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md whitespace-pre-wrap">
+                        {String(selectedSystemPrompt.data?.[field.key] || 'Not set')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {editingSystemPrompt && (
+                <div className="flex items-center justify-between gap-3 p-6 border-t border-gray-200 bg-gray-50">
+                  <button
+                    onClick={() => {
+                      setEditingSystemPrompt(false);
+                      setEditSystemPromptData({});
+                    }}
+                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await apiJson(`/api/collections/system-prompts/records/${selectedSystemPrompt.id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ data: editSystemPromptData })
+                      });
+                      setEditingSystemPrompt(false);
+                      setSelectedSystemPrompt(null);
+                      await loadSystemPrompts();
+                    }}
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm('Delete this system prompt?')) {
+                        await apiJson(`/api/collections/system-prompts/records/${selectedSystemPrompt.id}`, { method: 'DELETE' });
+                        setSelectedSystemPrompt(null);
+                        await loadSystemPrompts();
                       }
                     }}
                     className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"

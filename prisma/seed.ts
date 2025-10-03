@@ -10,6 +10,7 @@ const COLLECTIONS = [
   { name: "Companies", slug: "companies" },
   { name: "Tasks", slug: "tasks" },
   { name: "Tools & Pages", slug: "tools-pages" },
+  { name: "System Prompts", slug: "system-prompts" },
 ] as const;
 
 async function ensureCollections() {
@@ -298,6 +299,24 @@ async function seedTasksCollection() {
   }
 }
 
+async function seedSystemPromptsCollection() {
+  const systemPrompts = await prisma.collection.findUnique({ where: { slug: "system-prompts" } });
+  if (!systemPrompts) return;
+
+  const fields = [
+    { label: "Name", key: "name", type: "text", required: true, order: 1 },
+    { label: "Content", key: "content", type: "richtext", required: true, order: 2 },
+  ];
+
+  for (const f of fields) {
+    await prisma.field.upsert({
+      where: { collectionId_key: { collectionId: systemPrompts.id, key: f.key } },
+      update: { ...f },
+      create: { ...f, collectionId: systemPrompts.id },
+    });
+  }
+}
+
 async function main() {
   await ensureCollections();
   await seedAdvisorFields();
@@ -305,6 +324,7 @@ async function main() {
   await seedStructureTemplates();
   await seedCompaniesCollection();
   await seedTasksCollection();
+  await seedSystemPromptsCollection();
   await seedToolsPagesCollection();
 }
 
