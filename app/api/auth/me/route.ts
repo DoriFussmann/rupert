@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyJWT } from '@/app/lib/auth'
+import { prisma } from '@/app/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,13 +14,30 @@ export async function GET(request: NextRequest) {
     // Verify the JWT token
     const payload = await verifyJWT(token)
 
-    // Return user information from the token payload
+    // Fetch full user data from database to get company info
+    const user = await prisma.user.findUnique({
+      where: { id: String(payload.userId) },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        company: true,
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json({ user: null })
+    }
+
+    // Return user information including company
     return NextResponse.json({
       user: {
-        userId: payload.userId,
-        email: payload.email,
-        name: payload.name,
-        role: payload.role,
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        company: user.company,
       },
     })
   } catch (error) {

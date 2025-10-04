@@ -270,6 +270,8 @@ async function seedCompaniesCollection() {
     { label: "Description", key: "description", type: "richtext", required: false, order: 2 },
     { label: "Raw Data", key: "rawData", type: "richtext", required: false, order: 3 },
     { label: "Data Map", key: "dataMap", type: "json", required: false, order: 4 },
+    { label: "Business Classification", key: "businessClassification", type: "text", required: false, order: 5 },
+    { label: "Business Classification - Additional Details", key: "businessClassificationDetails", type: "richtext", required: false, order: 6 },
   ];
 
   for (const f of fields) {

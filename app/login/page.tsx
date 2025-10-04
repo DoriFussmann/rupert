@@ -1,13 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import NavigationHeader from "../components/NavigationHeader";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     // Create a style element to forcefully hide the layout header
@@ -73,21 +76,57 @@ export default function LoginPage() {
                 className="space-y-4"
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (isSignUp) return; // sign-up not implemented here
+                  setError(null);
+                  
                   try {
-                    setError(null);
-                    const res = await fetch("/api/auth/login", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email, password })
-                    });
-                    if (!res.ok) {
-                      const body = await res.json().catch(() => ({ error: "Login failed" }));
-                      throw new Error(body.error || "Login failed");
+                    if (isSignUp) {
+                      // Validation for sign-up
+                      if (!email || !password || !name) {
+                        setError("Please fill in all fields");
+                        return;
+                      }
+                      if (password !== confirmPassword) {
+                        setError("Passwords do not match");
+                        return;
+                      }
+                      if (password.length < 6) {
+                        setError("Password must be at least 6 characters");
+                        return;
+                      }
+                      
+                      const res = await fetch("/api/auth/signup", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email, password, name })
+                      });
+                      
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => ({ error: "Sign up failed" }));
+                        throw new Error(body.error || "Sign up failed");
+                      }
+                      
+                      // Redirect to the page they were trying to access, or home
+                      const next = searchParams.get('next') || '/';
+                      router.push(next);
+                    } else {
+                      // Login
+                      const res = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email, password })
+                      });
+                      
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => ({ error: "Login failed" }));
+                        throw new Error(body.error || "Login failed");
+                      }
+                      
+                      // Redirect to the page they were trying to access, or home
+                      const next = searchParams.get('next') || '/';
+                      router.push(next);
                     }
-                    router.push("/admin");
                   } catch (err: any) {
-                    setError(err?.message || "Login failed");
+                    setError(err?.message || (isSignUp ? "Sign up failed" : "Login failed"));
                   }
                 }}
               >
@@ -117,6 +156,9 @@ export default function LoginPage() {
                       type="text"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Your full name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required={isSignUp}
                     />
                   </div>
                 )}
@@ -147,6 +189,9 @@ export default function LoginPage() {
                       type="password"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required={isSignUp}
                     />
                   </div>
                 )}

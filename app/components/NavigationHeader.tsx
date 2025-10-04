@@ -14,6 +14,7 @@ interface PageRecord {
 export default function NavigationHeader() {
   const pathname = usePathname();
   const [pages, setPages] = useState<PageRecord[]>([]);
+  const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
 
   // Load pages from Tools & Pages collection
   useEffect(() => {
@@ -30,6 +31,32 @@ export default function NavigationHeader() {
     }
     loadPages();
   }, []);
+
+  // Load user info
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+        }
+      } catch (error) {
+        console.error('Error loading user:', error);
+      }
+    }
+    loadUser();
+  }, []);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
 
   // Function to convert page name to URL slug
   const getPageSlug = (pageName: string) => {
@@ -173,18 +200,27 @@ export default function NavigationHeader() {
             {/* Dropdown Menu */}
             <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <div className="py-2">
-                <Link href="/login" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                  Sign Up / Log In
-                </Link>
-                <Link href="/admin" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                  Admin
-                </Link>
-                <div className="border-t border-gray-100 my-1"></div>
-                <form action="/api/auth/logout" method="post" className="block">
-                  <button type="submit" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                    Logout
-                  </button>
-                </form>
+                {user ? (
+                  <>
+                    <div className="px-4 py-2 text-sm text-gray-500 border-b border-gray-100">
+                      Signed in as <span className="font-medium text-gray-700">{user.name || user.email}</span>
+                    </div>
+                    <Link href="/admin" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                      Admin
+                    </Link>
+                    <div className="border-t border-gray-100 my-1"></div>
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <Link href="/login" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                    Sign Up / Log In
+                  </Link>
+                )}
               </div>
             </div>
           </div>

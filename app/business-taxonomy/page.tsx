@@ -42,6 +42,13 @@ export default function BusinessTaxonomy() {
   const [isPreflightModalOpen, setIsPreflightModalOpen] = useState(false);
   const [isCallingApi, setIsCallingApi] = useState(false);
   const [apiResult, setApiResult] = useState<string | null>(null);
+  const [extractedClassification, setExtractedClassification] = useState<string | null>(null);
+  const [extractedDetails, setExtractedDetails] = useState<string | null>(null);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [showSuccessInButton, setShowSuccessInButton] = useState(false);
+  const [showContinueButton, setShowContinueButton] = useState(false);
+  const [buttonFadingOut, setButtonFadingOut] = useState(false);
 
   // System Prompt Selector
   const [systemPrompts, setSystemPrompts] = useState<Array<{ id: string; data: { name?: string; content?: string } }>>([]);
@@ -348,6 +355,110 @@ export default function BusinessTaxonomy() {
   }, [isTypingResponse, isChatCollapsed]);
 
   // Handle chat message sending
+  // Extract business classification and details from AI response
+  function extractClassificationData(text: string): { classification: string; details: string } | null {
+    try {
+      // Look for the default format: "✅ Classification: <category>"
+      const emojiMatch = text.match(/✅\s*Classification:\s*(.+?)(?:\n|$)/i);
+      if (emojiMatch && emojiMatch[1]) {
+        const classification = emojiMatch[1].trim();
+        
+        // Extract the full output after the classification for additional details
+        const detailsStart = text.indexOf('✅ Classification:');
+        const details = text.substring(detailsStart);
+        
+        return { classification, details };
+      }
+      
+      // Look for JSON format (when user types "export")
+      const jsonMatch = text.match(/\{[\s\S]*"classification"[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.classification) {
+            // Format the JSON data as readable text for the details field
+            const details = `Classification: ${parsed.classification}\n\n` +
+              `Confidence: ${parsed.confidence || 'N/A'}\n\n` +
+              `Rationale: ${parsed.rationale || 'N/A'}\n\n` +
+              `Evidence:\n${(parsed.evidence || []).map((e: string) => `• ${e}`).join('\n')}\n\n` +
+              `Modeling Implications:\n` +
+              `• Revenue Drivers: ${parsed.modeling_implications?.revenue_drivers || 'N/A'}\n` +
+              `• Direct Costs: ${parsed.modeling_implications?.direct_costs || 'N/A'}\n` +
+              `• Scalability: ${parsed.modeling_implications?.scalability || 'N/A'}\n` +
+              `• Key Focus: ${parsed.modeling_implications?.key_focus || 'N/A'}`;
+            
+            return { classification: parsed.classification, details };
+          }
+        } catch (e) {
+          // Not valid JSON, continue
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error extracting classification:', error);
+      return null;
+    }
+  }
+
+  // Handle updating the business profile
+  async function handleUpdateBusinessProfile() {
+    if (!extractedClassification) return;
+    
+    setIsUpdatingProfile(true);
+    setUpdateMessage(null);
+    setShowSuccessInButton(false);
+    
+    // Artificial 1 second delay for processing indicator
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    try {
+      const response = await fetch('/api/companies/update-classification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          classification: extractedClassification,
+          details: extractedDetails
+        })
+      });
+      
+      if (response.ok) {
+        setIsUpdatingProfile(false);
+        setShowSuccessInButton(true);
+        
+        // Wait 1 second with success message, then fade out
+        setTimeout(() => {
+          setButtonFadingOut(true);
+          
+          // After fade animation completes, show Continue button
+          setTimeout(() => {
+            setShowContinueButton(true);
+            setButtonFadingOut(false);
+          }, 300); // Match fade duration
+        }, 1000);
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        setUpdateMessage({ type: 'error', text: errorData.error || 'Failed to update business profile' });
+        setIsUpdatingProfile(false);
+      }
+    } catch (error) {
+      console.error('Error updating business profile:', error);
+      setUpdateMessage({ type: 'error', text: 'Failed to update business profile' });
+      setIsUpdatingProfile(false);
+    }
+  }
+
+  // Handle continue action
+  function handleContinue() {
+    // Reset states for next interaction
+    setShowContinueButton(false);
+    setShowSuccessInButton(false);
+    setExtractedClassification(null);
+    setExtractedDetails(null);
+  }
+
   async function handleSendMessage() {
     if (!chatInput.trim()) return;
     
@@ -417,6 +528,13 @@ export default function BusinessTaxonomy() {
         };
         
         setChatMessages(prev => [...prev, advisorMessage]);
+        
+        // Try to extract business classification and details from the response
+        const classificationData = extractClassificationData(result);
+        if (classificationData) {
+          setExtractedClassification(classificationData.classification);
+          setExtractedDetails(classificationData.details);
+        }
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         const errorMessage = {
@@ -904,6 +1022,63 @@ export default function BusinessTaxonomy() {
                 )}
               </div>
             </div>
+
+            {/* Update Business Profile Button - Outside Chat Box */}
+            {extractedClassification && !showContinueButton && (
+              <div className="mb-4 flex flex-col items-end px-4">
+                <button
+                  onClick={handleUpdateBusinessProfile}
+                  disabled={isUpdatingProfile || showSuccessInButton}
+                  className={`px-3 py-1.5 text-xs rounded-md border transition-all duration-300 ${
+                    showSuccessInButton 
+                      ? 'bg-green-100 text-green-800 border-green-300'
+                      : 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
+                  } ${buttonFadingOut ? 'opacity-0' : 'opacity-100'} ${
+                    isUpdatingProfile || showSuccessInButton ? 'cursor-not-allowed' : ''
+                  }`}
+                  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                >
+                  {isUpdatingProfile ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </span>
+                  ) : showSuccessInButton ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                      Saved!
+                    </span>
+                  ) : (
+                    'Update Business Profile'
+                  )}
+                </button>
+                
+                {/* Error Message */}
+                {updateMessage && updateMessage.type === 'error' && (
+                  <div className="mt-2 px-3 py-2 rounded-md text-sm bg-red-50 text-red-700 border border-red-200">
+                    {updateMessage.text}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Continue Button - Appears after success */}
+            {showContinueButton && (
+              <div className="mb-4 flex flex-col items-end px-4 animate-fade-in">
+                <button
+                  onClick={handleContinue}
+                  className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 border border-blue-300 transition-colors"
+                  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                >
+                  Continue
+                </button>
+              </div>
+            )}
 
             {(showHowItWorks || isSimulating || simulateResult || isCallingApi || apiResult) && (
               <div className="p-4 pt-0">

@@ -10,37 +10,68 @@ async function isAuthed(req: NextRequest) {
   try { await jwtVerify(token, secret); return true; } catch { return false; }
 }
 
+// Public routes that don't require authentication
+const publicRoutes = [
+  '/',           // Home page
+  '/login',      // Login/signup page
+  '/api/auth',   // Auth endpoints (login, signup, logout)
+  '/api/health', // Health check
+];
+
+// Check if a path is public
+function isPublicRoute(pathname: string): boolean {
+  // Exact match or starts with pattern
+  return publicRoutes.some(route => {
+    if (route === pathname) return true;
+    if (pathname.startsWith(route + '/')) return true;
+    return false;
+  });
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const method = req.method.toUpperCase();
 
-  // 1) Protect Admin UI
-  if (pathname.startsWith("/admin")) {
-    if (!(await isAuthed(req))) {
-      const url = new URL("/login", req.url);
-      url.searchParams.set("next", pathname);
-      return NextResponse.redirect(url);
-    }
+  // Allow public routes
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
-  // 2) Protect admin APIs (all methods)
-  if (pathname.startsWith("/api/admin/")) {
-    if (!(await isAuthed(req))) {
-      return new NextResponse(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
-    }
+  // Allow access to static files and Next.js internals
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/static') ||
+    pathname.startsWith('/uploads') ||
+    pathname.includes('.') // Files with extensions (images, fonts, etc.)
+  ) {
     return NextResponse.next();
   }
 
-  // 3) Protect mutating collection APIs (non-GET only)
-  const isCollectionsAPI =
-    pathname.startsWith("/api/collections/") &&
-    (pathname.includes("/fields") || pathname.includes("/records"));
+  // Check authentication for all other routes
+  const authenticated = await isAuthed(req);
 
-  if (isCollectionsAPI && method !== "GET") {
-    if (!(await isAuthed(req))) {
-      return new NextResponse(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
-    }
+  // Allow read-only API calls (GET requests) for non-authenticated users
+  // This allows them to see content on the home page
+  if (!authenticated && pathname.startsWith('/api') && method === 'GET') {
+    return NextResponse.next();
+  }
+
+  // Protect all pages except home and login
+  if (!authenticated && !pathname.startsWith('/api')) {
+    const url = new URL("/login", req.url);
+    url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // Protect mutating API routes (POST, PUT, DELETE, PATCH) for non-authenticated users
+  if (!authenticated && pathname.startsWith('/api')) {
+    return new NextResponse(
+      JSON.stringify({ error: "Unauthorized" }), 
+      { 
+        status: 401, 
+        headers: { "Content-Type": "application/json" } 
+      }
+    );
   }
 
   return NextResponse.next();
@@ -48,9 +79,12 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/admin",
-    "/admin/:path*",
-    "/api/admin/:path*",
-    "/api/collections/:path*",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };
