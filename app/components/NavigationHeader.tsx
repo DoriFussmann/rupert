@@ -49,6 +49,7 @@ export default function NavigationHeader() {
     if (name.includes('financial') || name.includes('finance')) return '💰';
     if (name.includes('admin')) return '⚙️';
     if (name.includes('login')) return '🔐';
+    if (name.includes('taxonomy') || name.includes('business')) return '🏢';
     return '📄'; // Default emoji for other pages
   };
 

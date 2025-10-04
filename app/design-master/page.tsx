@@ -489,17 +489,16 @@ export default function DesignMaster() {
                 <h2 className="text-sm font-medium text-gray-900">Inputs Panel</h2>
               </button>
               <div
-                className="p-4"
+                className="overflow-hidden"
                 style={{
-                  maxHeight: inputsCollapsed ? 0 : 2000,
+                  maxHeight: inputsCollapsed ? 0 : '2000px',
                   opacity: inputsCollapsed ? 0 : 1,
-                  overflow: 'hidden',
-                  padding: inputsCollapsed ? 0 : 16,
-                  transition: 'max-height 200ms ease, opacity 200ms ease, padding 200ms ease'
+                  transition: 'max-height 300ms ease-in-out, opacity 250ms ease-in-out'
                 }}
               >
+                <div className="p-4">
                 {/* Image placeholder at top */}
-                <div className="mb-4 w-full h-64 bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
+                <div className="w-full h-64 bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
                   {advisorImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img 
@@ -514,7 +513,7 @@ export default function DesignMaster() {
                 </div>
 
                 {/* Chat Box */}
-                <div className="mt-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+                <div className="mt-3 border border-gray-200 rounded-lg bg-white shadow-sm">
                   {/* Chat Header */}
                   <div 
                     className={`px-3 py-1.5 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors ${isChatCollapsed ? 'rounded-md' : 'border-b border-gray-100 rounded-t-md'}`}
@@ -657,7 +656,7 @@ export default function DesignMaster() {
                 </div>
 
                 {/* User Prompt button */}
-                <div className="mt-2">
+                <div className="mt-3">
                   <button
                     type="button"
                     onClick={() => setIsUserPromptOpen(true)}
@@ -719,7 +718,7 @@ export default function DesignMaster() {
                     Call
                   </button>
                 </div>
-
+                </div>
               </div>
             </div>
           </div>
@@ -870,7 +869,7 @@ export default function DesignMaster() {
       {/* Controls Panel (no backdrop), matches Model Builder styling */}
       {isControlsOpen && (
         <div className="fixed inset-0 z-50 pointer-events-none">
-          <div className="absolute top-24 left-1/2 -translate-x-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full max-w-md" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full max-w-md" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
               <h3 className="text-sm text-gray-900">Controls</h3>
               <button onClick={() => setIsControlsOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
@@ -972,8 +971,8 @@ export default function DesignMaster() {
       {isSystemPromptPreviewOpen && (
         <div className="fixed inset-0 z-50 pointer-events-none">
           <div 
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full max-w-3xl flex flex-col"
-            style={{ fontFamily: 'Inter, system-ui, sans-serif', aspectRatio: '16/9' }}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl flex flex-col"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif', width: '72rem', maxWidth: '90vw', aspectRatio: '16/9' }}
           >
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
               <h3 className="text-sm text-gray-900">System Prompt</h3>

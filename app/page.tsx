@@ -25,7 +25,7 @@ interface ToolsPageRecord {
 
 export default function Home() {
   useEffect(() => {
-    // Create a style element to forcefully hide the layout header
+    // Create a style element to forcefully hide the layout header and scrollbar
     const styleElement = document.createElement('style');
     styleElement.id = 'hide-layout-header';
     styleElement.textContent = `
@@ -35,6 +35,16 @@ export default function Home() {
         opacity: 0 !important;
         height: 0 !important;
         overflow: hidden !important;
+      }
+      html, body {
+        overflow: auto !important;
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+      }
+      html::-webkit-scrollbar, body::-webkit-scrollbar {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
       }
     `;
     document.head.appendChild(styleElement);
