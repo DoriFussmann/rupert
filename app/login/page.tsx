@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import NavigationHeader from "../components/NavigationHeader";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -221,5 +221,24 @@ export default function LoginPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <>
+        <NavigationHeader />
+        <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
+          <div className="flex justify-center items-start pt-8">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6 w-96">
+              <div className="text-center text-gray-500">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
