@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import FinancialModelOutput from "./FinancialModelOutput";
 
 interface OutputsPanelProps {
@@ -21,6 +21,30 @@ export default function OutputsPanel({
   const [showDebugLog, setShowDebugLog] = useState(false);
   const [debugCopyText, setDebugCopyText] = useState('Copy');
   const [responseCopyText, setResponseCopyText] = useState('Copy');
+
+  // Reusable preloader (matching Design Master)
+  const loadingMessages = [
+    "Analyzing semantic intent…",
+    "Calibrating vector embeddings…",
+    "Mapping entities and relationships…",
+    "Synthesizing optimal strategy…",
+    "Validating constraints and edge cases…",
+  ];
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const loadingMsgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isRunningApiCall) {
+      setLoadingMessageIndex(0);
+      if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current);
+      loadingMsgIntervalRef.current = setInterval(() => {
+        setLoadingMessageIndex((i) => (i + 1) % loadingMessages.length);
+      }, 2500);
+    } else {
+      if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current);
+    }
+    return () => { if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current); };
+  }, [isRunningApiCall]);
 
   // Check if response is a financial model (has meta, tables, etc.)
   const isFinancialModel = (response: string | null) => {
@@ -88,17 +112,21 @@ export default function OutputsPanel({
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-            <h2 className="text-sm font-medium text-gray-900">Outputs Panel</h2>
+            <h2 className="text-sm text-gray-900">Outputs Panel</h2>
           </div>
         </div>
         
         <div className="p-6">
           {/* Preloader when API call is running */}
           {isRunningApiCall && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
-              <p className="text-lg font-medium text-gray-700">Processing API Call...</p>
-              <p className="text-sm text-gray-500 mt-2">Please wait while we generate your financial model</p>
+            <div className="my-3 flex justify-center py-10">
+              <div className="w-1/2">
+                <div className="border border-gray-200 bg-gray-50 rounded-md h-9 px-4 flex items-center justify-center overflow-hidden">
+                  <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
+                    {loadingMessages[loadingMessageIndex]}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -108,7 +136,7 @@ export default function OutputsPanel({
               {/* Financial Model Output if detected */}
               {isFinancialModel(apiCallResult) && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Model Results</h3>
+                  <h3 className="text-base text-gray-900 mb-4">Financial Model Results</h3>
                   <FinancialModelOutput data={apiCallResult} />
                 </div>
               )}
@@ -116,7 +144,7 @@ export default function OutputsPanel({
               {/* Always show Raw API Response */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-gray-900">Raw API Response:</h3>
+                  <h3 className="text-sm text-gray-900">Raw API Response:</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setShowApiResponse(!showApiResponse)}
@@ -155,7 +183,7 @@ export default function OutputsPanel({
               {apiCallDebugInfo && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-gray-900">Debug Log:</h3>
+                    <h3 className="text-sm text-gray-900">Debug Log:</h3>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setShowDebugLog(!showDebugLog)}
@@ -193,14 +221,8 @@ export default function OutputsPanel({
               </div>
               )}
 
-          {/* Default state when no API call has been made */}
-          {!isRunningApiCall && !apiCallResult && (
-            <div className="text-center text-gray-500 py-12">
-              <div className="text-4xl mb-4">📊</div>
-              <p className="text-lg">Outputs Panel</p>
-              <p className="text-sm mt-2">Run an API call to see results here</p>
-            </div>
-          )}
+          {/* Default state when no API call has been made - intentionally empty */}
+          {!isRunningApiCall && !apiCallResult && null}
         </div>
       </div>
     </div>

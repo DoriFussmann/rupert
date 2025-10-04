@@ -153,7 +153,19 @@ export default function Home() {
             advisor.data.name.trim() !== '' &&
             advisor.data.image.trim() !== ''
           );
-          setAdvisors(validAdvisors);
+          // Prioritize Rupert first, Jade second (case-insensitive name contains)
+          const score = (name: string): number => {
+            const n = name.toLowerCase();
+            if (n.includes('rupert')) return 2;
+            if (n.includes('jade')) return 1;
+            return 0;
+          };
+          const prioritized = validAdvisors.slice().sort((a, b) => {
+            const aScore = score(String(a.data?.name || ''));
+            const bScore = score(String(b.data?.name || ''));
+            return bScore - aScore;
+          });
+          setAdvisors(prioritized);
         }
 
         // Load tools & pages

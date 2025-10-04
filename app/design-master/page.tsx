@@ -6,7 +6,7 @@ export default function DesignMaster() {
   const [outputsExpanded, setOutputsExpanded] = useState(false);
   const [inputsCollapsed, setInputsCollapsed] = useState(false);
   const [advisorImageUrl, setAdvisorImageUrl] = useState<string | null>(null);
-  const [advisorName, setAdvisorName] = useState<string>('Advisor');
+  const [advisorName, setAdvisorName] = useState<string>('');
   const [howItWorksTexts, setHowItWorksTexts] = useState<string[]>([]);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [howItWorksStep, setHowItWorksStep] = useState(0);
@@ -23,15 +23,28 @@ export default function DesignMaster() {
   const loadingMsgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Chat functionality
-  const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, timestamp: Date, isUser: boolean}>>([
-    { id: '1', text: 'Hello! I\'m your design advisor. How can I help you today?', timestamp: new Date(), isUser: false }
-  ]);
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, timestamp: Date, isUser: boolean}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [isTypingResponse, setIsTypingResponse] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [isInputsPanelBlinking, setIsInputsPanelBlinking] = useState(false);
   const [isOutputsPanelBlinking, setIsOutputsPanelBlinking] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  // Seed greeting once advisorName is available and no messages yet
+  useEffect(() => {
+    if (chatMessages.length === 0 && advisorName && advisorName.toLowerCase() !== 'advisor') {
+      setChatMessages([{ id: 'greet', text: `Hello, I am ${advisorName}.`, timestamp: new Date(), isUser: false }]);
+    }
+  }, [advisorName]);
+  // Controls like Model Builder
+  const [isControlsOpen, setIsControlsOpen] = useState(false);
+  const [responseFormat, setResponseFormat] = useState<'json_object' | 'text' | 'xml'>('json_object');
+  const [temperature, setTemperature] = useState<number>(0.7);
+  const [topP, setTopP] = useState<number>(1.0);
+  const [maxOutputTokens, setMaxOutputTokens] = useState<number>(5000);
+  const [isSystemPromptPreviewOpen, setIsSystemPromptPreviewOpen] = useState(false);
+  const [isUserPromptOpen, setIsUserPromptOpen] = useState(false);
+  const [userPrompt, setUserPrompt] = useState<string>("");
 
   const loadingMessages = [
     "Analyzing semantic intent…",
@@ -82,6 +95,15 @@ export default function DesignMaster() {
   };
 
   const actionItems: Array<{ key: string; title: string; svg: JSX.Element }> = [
+    {
+      key: 'trash',
+      title: 'Clear Outputs',
+      svg: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h2a2 2 0 012 2v2" />
+        </svg>
+      ),
+    },
     {
       key: 'add',
       title: 'Add to Projects',
@@ -161,7 +183,7 @@ export default function DesignMaster() {
     };
   }, []);
 
-  // Load advisor image and How It Works text assigned to this page via Tools & Pages
+  // Load advisor image, How It Works, and System Prompts
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -196,6 +218,20 @@ export default function DesignMaster() {
         if (!cancelled) {
           setAdvisorImageUrl(img || null);
           setAdvisorName(name);
+        }
+        // Load system prompts
+        const promptsRes = await fetch('/api/collections/system-prompts/records', { headers: { 'Content-Type': 'application/json' } });
+        if (promptsRes.ok) {
+          const records: Array<{ id: string; data?: Record<string, unknown> }> = await promptsRes.json();
+          if (!cancelled) {
+            setSystemPrompts(records as any);
+            const def = (records as any[]).find(p => (p?.data as any)?.name === 'FP&A Modeling Assistant');
+            if (def) {
+              setSelectedSystemPromptId(def.id);
+              const content = (def.data as any)?.content ? String((def.data as any).content) : '';
+              setSystemPrompt(content);
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading advisor image:', error);
@@ -370,6 +406,60 @@ export default function DesignMaster() {
     }, 250);
   }
 
+  function handleClearOutputs() {
+    // Gradually hide icons
+    if (actionsIntervalRef.current) {
+      clearInterval(actionsIntervalRef.current);
+    }
+    const hideInterval = setInterval(() => {
+      setVisibleActionCount((c) => {
+        if (c <= 0) {
+          clearInterval(hideInterval);
+          setShowActions(false);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 60);
+    // Clear outputs area
+    setSimulateResult(null);
+    setShowHowItWorks(false);
+    setTypedText("");
+  }
+
+  // System Prompt Selector
+  const [systemPrompts, setSystemPrompts] = useState<Array<{ id: string; data: { name?: string; content?: string } }>>([]);
+  const [selectedSystemPromptId, setSelectedSystemPromptId] = useState<string>("");
+  const [systemPrompt, setSystemPrompt] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const promptsRes = await fetch('/api/collections/system-prompts/records', { headers: { 'Content-Type': 'application/json' } });
+        if (!promptsRes.ok) return;
+        const records: Array<{ id: string; data?: { name?: string; content?: string } }> = await promptsRes.json();
+        if (!cancelled) {
+          setSystemPrompts(records as any);
+          if (records.length > 0) {
+            setSelectedSystemPromptId(records[0].id);
+            setSystemPrompt(String(records[0].data?.content || ''));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading system prompts:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  function handleSystemPromptChange(promptId: string) {
+    setSelectedSystemPromptId(promptId);
+    const found = (systemPrompts as any[]).find(p => p.id === promptId);
+    const content = found?.data?.content ? String(found.data.content) : '';
+    setSystemPrompt(content);
+  }
+
   return (
     <>
       <NavigationHeader />
@@ -398,8 +488,16 @@ export default function DesignMaster() {
                 </svg>
                 <h2 className="text-sm font-medium text-gray-900">Inputs Panel</h2>
               </button>
-              {!inputsCollapsed && (
-              <div className="p-4">
+              <div
+                className="p-4"
+                style={{
+                  maxHeight: inputsCollapsed ? 0 : 2000,
+                  opacity: inputsCollapsed ? 0 : 1,
+                  overflow: 'hidden',
+                  padding: inputsCollapsed ? 0 : 16,
+                  transition: 'max-height 200ms ease, opacity 200ms ease, padding 200ms ease'
+                }}
+              >
                 {/* Image placeholder at top */}
                 <div className="mb-4 w-full h-64 bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
                   {advisorImageUrl ? (
@@ -432,9 +530,11 @@ export default function DesignMaster() {
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
-                        <span className="text-sm text-gray-700" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-                          Chat to {advisorName}
-                        </span>
+                        {isChatCollapsed && (
+                          <span className="text-sm text-gray-700" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                            Chat to {advisorName || 'Advisor'}
+                          </span>
+                        )}
                       </div>
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     </div>
@@ -446,7 +546,7 @@ export default function DesignMaster() {
                       {/* Chat Messages */}
                       <div 
                         ref={chatContainerRef}
-                        className="h-48 overflow-y-auto p-3 space-y-3"
+                        className="max-h-64 overflow-y-auto p-3 space-y-3"
                         style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                       >
                     {chatMessages.map((message) => (
@@ -513,29 +613,61 @@ export default function DesignMaster() {
                   )}
                 </div>
 
-                {/* Dropdown Menu - identical to header Menu button */}
+                {/* System Prompt Selector (wired to collection) */}
                 <div className="relative group mt-3">
-                  <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                  <button onClick={() => setIsSystemPromptPreviewOpen(true)} className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
                     <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    <span>Select Option</span>
+                    <span>{(systemPrompts.find(p => p.id === selectedSystemPromptId)?.data?.name) || 'System Prompt'}</span>
                   </button>
-                  
-                {/* Dropdown Menu */}
-                <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
-                    <div className="py-2">
-                      <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                        Option 1
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        onClick={() => handleSystemPromptChange("")}
+                      >
+                        -- Select a System Prompt --
                       </button>
-                      <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                        Option 2
-                      </button>
-                      <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                        Option 3
-                      </button>
+                      {systemPrompts.map(p => (
+                        <button
+                          key={p.id}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                          onClick={() => handleSystemPromptChange(p.id)}
+                        >
+                          {p.data?.name || 'Unnamed'}
+                        </button>
+                      ))}
                     </div>
                   </div>
+                </div>
+
+                {/* Controls button (like Model Builder) */}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsControlsOpen(true)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span>Controls</span>
+                  </button>
+                </div>
+
+                {/* User Prompt button */}
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsUserPromptOpen(true)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h8M8 12h8M8 18h8" />
+                    </svg>
+                    <span>User Prompt</span>
+                  </button>
                 </div>
 
                 {/* Action Button (matches selection height and layout, light style) */}
@@ -561,8 +693,34 @@ export default function DesignMaster() {
                   {isSimulating ? 'Processing…' : 'Button'}
                 </button>
 
+                {/* Separator */}
+                <div className="border-t border-gray-200 my-3"></div>
+
+                {/* Preflight and Call (match Model Builder styles) */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    onClick={() => {
+                      // TODO: Wire to actual preflight once payload is defined for Design Master
+                      console.log('Preflight clicked');
+                    }}
+                  >
+                    Preflight
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                    onClick={() => {
+                      // TODO: Wire to actual call once payload is defined for Design Master
+                      console.log('Call clicked');
+                    }}
+                  >
+                    Call
+                  </button>
+                </div>
+
               </div>
-              )}
             </div>
           </div>
 
@@ -643,8 +801,8 @@ export default function DesignMaster() {
                       <div className="text-xs text-gray-500 mt-1">
                         Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
                       </div>
-                    </div>
-                  )}
+                </div>
+                )}
                 </div>
               )}
               {showHowItWorks && (
@@ -670,13 +828,14 @@ export default function DesignMaster() {
               )}
               {/* Action icons top-right */}
               {showActions && (
-                <div className="absolute top-2 right-2 flex flex-row-reverse items-center gap-2">
+                <div className="absolute top-2 right-2 flex items-center gap-2">
                   {actionItems.slice(0, visibleActionCount).map((a, idx) => (
                     <div key={a.key} className="relative group">
                       <button
                         title={a.title}
                         className="bg-blue-100 text-blue-800 border border-blue-300 rounded-md p-1 shadow-sm hover:bg-blue-200 transition-all nb-anim-fade-slide-in"
                         style={{ animationDelay: `${idx * 60}ms` }}
+                        onClick={a.key === 'trash' ? handleClearOutputs : undefined}
                       >
                         {a.svg}
                       </button>
@@ -707,6 +866,150 @@ export default function DesignMaster() {
           </div>
         </div>
       </div>
+
+      {/* Controls Panel (no backdrop), matches Model Builder styling */}
+      {isControlsOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full max-w-md" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">Controls</h3>
+              <button onClick={() => setIsControlsOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 space-y-3">
+              {/* Response Format */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Response Format</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{responseFormat === 'json_object' ? 'type: json_object' : `type: ${responseFormat}`}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {(['json_object','text','xml'] as const).map(fmt => (
+                        <button key={fmt} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setResponseFormat(fmt)}>
+                          {fmt === 'json_object' ? 'type: json_object' : `type: ${fmt}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Temperature */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Temperature</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(temperature).toFixed(1)}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0,0.2,0.4,0.7,1.0,1.3,1.8,2.0].map(t => (
+                        <button key={t} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setTemperature(t)}>
+                          {t.toFixed(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top P */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Top P</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(topP).toFixed(1)}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0,0.1,0.2,0.3,0.5,0.7,0.9,1.0].map(p => (
+                        <button key={p} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setTopP(p)}>
+                          {p.toFixed(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Max Tokens */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Max Tokens</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{maxOutputTokens.toLocaleString()}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[1000,2000,3000,4000,5000,8000,10000,16000,32000].map(tok => (
+                        <button key={tok} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setMaxOutputTokens(tok)}>
+                          {tok.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* System Prompt Preview - centered */}
+      {isSystemPromptPreviewOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div 
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full max-w-3xl flex flex-col"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif', aspectRatio: '16/9' }}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">System Prompt</h3>
+              <button onClick={() => setIsSystemPromptPreviewOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              <div className="text-sm bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-gray-900">
+                {String(systemPrompt || '')}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Prompt Panel - centered, editable */}
+      {isUserPromptOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div 
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full max-w-3xl flex flex-col"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif', aspectRatio: '16/9' }}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">User Prompt</h3>
+              <button onClick={() => setIsUserPromptOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              <textarea
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                className="w-full h-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono"
+                placeholder="Enter user prompt..."
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -12,7 +12,12 @@ type RecordT = { id:string; data:Record<string, unknown>; createdAt:string };
 function Section({ title, children, defaultOpen = false }: { title:string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="nb-card mb-6">
+    <section 
+      className="nb-card mb-6"
+      onClick={() => {
+        if (!open) setOpen(true);
+      }}
+    >
       <header className="nb-card-header">
         <button 
           onClick={() => setOpen(o => !o)}
@@ -230,6 +235,9 @@ export default function AdminPage() {
         height: 0 !important;
         overflow: hidden !important;
       }
+      html, body { overflow: auto !important; }
+      html, body { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+      html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
     `;
     document.head.appendChild(styleElement);
     
@@ -761,7 +769,23 @@ export default function AdminPage() {
                   onClick={() => setSelectedAdvisor(r)}
                   className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  {advisorFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  {advisorFields.map(f => (
+                    <td key={f.id} className="nb-td">
+                      {f.type === 'image' ? (
+                        (() => {
+                          const raw = r.data?.[f.key];
+                          const val = raw == null ? "" : String(raw);
+                          if (!val) return "";
+                          const src = val.startsWith("http") || val.startsWith("data:")
+                            ? val
+                            : (val.startsWith("/uploads/") ? val : `/uploads/${val}`);
+                          return <img src={src} alt={f.label} className="w-10 h-10 object-cover rounded" />;
+                        })()
+                      ) : (
+                        String(r.data?.[f.key] ?? "")
+                      )}
+                    </td>
+                  ))}
                   <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
                 </tr>
               ))}
@@ -1549,10 +1573,41 @@ export default function AdminPage() {
                             placeholder="Image URL or filename"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
+                          <div className="flex items-center gap-2">
+                            <label className="nb-btn nb-btn-secondary cursor-pointer">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const inputEl = e.currentTarget;
+                                  const file = inputEl.files?.[0];
+                                  if (!file) return;
+                                  const fd = new FormData();
+                                  fd.append('file', file);
+                                  try {
+                                    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                    const json = await res.json();
+                                    if (res.ok && json?.filePath) {
+                                      setEditAdvisorData({ ...editAdvisorData, [field.key]: json.filePath });
+                                    } else {
+                                      alert(json?.error || 'Upload failed');
+                                    }
+                                  } catch (err) {
+                                    console.error('Upload error', err);
+                                    alert('Upload failed');
+                                  } finally {
+                                    inputEl.value = '';
+                                  }
+                                }}
+                              />
+                              Upload Image
+                            </label>
+                          </div>
                           {editAdvisorData[field.key] && (
                             <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden">
                               <img 
-                                src={String(editAdvisorData[field.key]).startsWith('http') ? String(editAdvisorData[field.key]) : `/uploads/${editAdvisorData[field.key]}`}
+                                src={(String(editAdvisorData[field.key]).startsWith('http') || String(editAdvisorData[field.key]).startsWith('/uploads/')) ? String(editAdvisorData[field.key]) : `/uploads/${editAdvisorData[field.key]}`}
                                 alt="Preview" 
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -1574,7 +1629,7 @@ export default function AdminPage() {
                       field.type === 'image' && selectedAdvisor.data?.[field.key] ? (
                         <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden">
                           <img 
-                            src={String(selectedAdvisor.data[field.key]).startsWith('http') ? String(selectedAdvisor.data[field.key]) : `/uploads/${selectedAdvisor.data[field.key]}`}
+                            src={(String(selectedAdvisor.data[field.key]).startsWith('http') || String(selectedAdvisor.data[field.key]).startsWith('/uploads/')) ? String(selectedAdvisor.data[field.key]) : `/uploads/${selectedAdvisor.data[field.key]}`}
                             alt={field.label} 
                             className="w-full h-full object-cover"
                           />
