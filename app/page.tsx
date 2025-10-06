@@ -9,7 +9,6 @@ interface AdvisorRecord {
     name?: string;
     role?: string;
     image?: string;
-    assignedPages?: string[]; // Array of Tools & Pages IDs
     [key: string]: unknown;
   };
 }
@@ -19,6 +18,7 @@ interface ToolsPageRecord {
   data?: {
     name?: string;
     description?: string;
+    mainAdvisorId?: string;
     [key: string]: unknown;
   };
 }
@@ -81,21 +81,9 @@ export default function Home() {
   // Tools & Pages data
   const [toolsPages, setToolsPages] = useState<ToolsPageRecord[]>([]);
 
-  // Helper function to get assigned tools & pages for an advisor
+  // Helper function to get assigned tools & pages for an advisor (by mainAdvisorId)
   const getAssignedToolsPages = (advisor: AdvisorRecord): ToolsPageRecord[] => {
-    console.log('Getting assigned tools for advisor:', advisor.data?.name, 'assignedPages:', advisor.data?.assignedPages);
-    
-    if (!advisor.data?.assignedPages || !Array.isArray(advisor.data.assignedPages)) {
-      console.log('No assigned pages found or not an array');
-      return [];
-    }
-    
-    const assigned = toolsPages.filter(tool => 
-      advisor.data?.assignedPages?.includes(tool.id)
-    );
-    
-    console.log('Filtered assigned tools:', assigned);
-    return assigned;
+    return toolsPages.filter(tool => tool.data?.mainAdvisorId === advisor.id);
   };
 
   // Helper function to convert page name to URL slug
@@ -108,9 +96,9 @@ export default function Home() {
 
   // Helper function to get the first assigned page URL for an advisor
   const getAdvisorPageUrl = (advisor: AdvisorRecord): string | null => {
-    const assignedPages = getAssignedToolsPages(advisor);
-    if (assignedPages.length > 0) {
-      const pageName = assignedPages[0].data?.name;
+    const assignedPagesForAdvisor = getAssignedToolsPages(advisor);
+    if (assignedPagesForAdvisor.length > 0) {
+      const pageName = assignedPagesForAdvisor[0].data?.name;
       if (pageName) {
         return `/${getPageSlug(String(pageName))}`;
       }
@@ -156,13 +144,6 @@ export default function Home() {
         const advisorsResponse = await fetch('/api/collections/advisors/records');
         if (advisorsResponse.ok) {
           const records: AdvisorRecord[] = await advisorsResponse.json();
-          // Filter advisors that have both name and image
-          const validAdvisors = records.filter(advisor => 
-            advisor.data?.name && 
-            advisor.data?.image && 
-            advisor.data.name.trim() !== '' &&
-            advisor.data.image.trim() !== ''
-          );
           // Prioritize Rupert first, Jade second (case-insensitive name contains)
           const score = (name: string): number => {
             const n = name.toLowerCase();
@@ -170,7 +151,7 @@ export default function Home() {
             if (n.includes('jade')) return 1;
             return 0;
           };
-          const prioritized = validAdvisors.slice().sort((a, b) => {
+          const prioritized = records.slice().sort((a, b) => {
             const aScore = score(String(a.data?.name || ''));
             const bScore = score(String(b.data?.name || ''));
             return bScore - aScore;
@@ -182,7 +163,6 @@ export default function Home() {
         const toolsResponse = await fetch('/api/collections/tools-pages/records');
         if (toolsResponse.ok) {
           const toolsData: ToolsPageRecord[] = await toolsResponse.json();
-          console.log('Tools & Pages data:', toolsData);
           setToolsPages(toolsData);
         }
       } catch (error) {
