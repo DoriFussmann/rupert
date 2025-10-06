@@ -86,7 +86,7 @@ export default function AdminPage() {
   const [selectedAdvisor, setSelectedAdvisor] = useState<RecordT | null>(null);
   const [editingAdvisor, setEditingAdvisor] = useState(false);
   const [editAdvisorData, setEditAdvisorData] = useState<Record<string, unknown>>({});
-  const [advisorAssignedPages, setAdvisorAssignedPages] = useState<string[]>([]);
+  const [showAllAdvisorsModal, setShowAllAdvisorsModal] = useState(false);
 
   // STRUCTURES COLLECTION
   const [structureFields, setStructureFields] = useState<Field[]>([]);
@@ -115,6 +115,7 @@ export default function AdminPage() {
   const [selectedTool, setSelectedTool] = useState<RecordT | null>(null);
   const [editingTool, setEditingTool] = useState(false);
   const [editToolData, setEditToolData] = useState<Record<string, unknown>>({});
+  const [showAllPagesModal, setShowAllPagesModal] = useState(false);
 
   // SYSTEM PROMPTS COLLECTION
   const [systemPromptFields, setSystemPromptFields] = useState<Field[]>([]);
@@ -204,24 +205,15 @@ export default function AdminPage() {
   }
 
   async function loadToolsPages() {
-    const f: Field[] = await apiJson(`/api/collections/tools-pages/fields`);
+    const f: Field[] = await apiJson(`/api/collections/pages/fields`);
     setToolsFields(f);
-    const r: RecordT[] = await apiJson(`/api/collections/tools-pages/records`);
+    const r: RecordT[] = await apiJson(`/api/collections/pages/records`);
     setToolsRecords(r);
     const draft: Record<string, unknown> = {};
     f.forEach(x => { draft[x.key] = ""; });
     setToolsRDraft(draft);
   }
 
-  function handleAdvisorPageToggle(pageId: string) {
-    setAdvisorAssignedPages(prev => {
-      if (prev.includes(pageId)) {
-        return prev.filter(id => id !== pageId);
-      } else {
-        return [...prev, pageId];
-      }
-    });
-  }
 
   useEffect(() => { 
     // Create a style element to forcefully hide the layout header
@@ -589,7 +581,7 @@ export default function AdminPage() {
         </div>
       </Section>
 
-      <Section title="Tools & Pages">
+      <Section title="Pages">
         <div className="grid md:grid-cols-3 gap-2 mb-3">
           {toolsFields.map(f => (
             f.key === 'mainAdvisorId' ? (
@@ -604,13 +596,23 @@ export default function AdminPage() {
                   ))}
                 </Select>
               </div>
+            ) : f.type === 'boolean' ? (
+              <div key={f.id} className="flex items-center gap-2 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(toolsRDraft[f.key])}
+                  onChange={e=>setToolsRDraft({ ...toolsRDraft, [f.key]: e.target.checked })}
+                  className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label className="text-sm text-gray-700">{f.label}</label>
+              </div>
             ) : (
               <TextInput key={f.id} placeholder={f.label} value={String(toolsRDraft[f.key] ?? "")} onChange={e=>setToolsRDraft({ ...toolsRDraft, [f.key]: e.target.value })} />
             )
           ))}
           <div className="md:col-span-3">
             <button className="nb-btn nb-btn-primary" onClick={async () => {
-              await apiJson(`/api/collections/tools-pages/records`, { method: "POST", body: JSON.stringify({ data: toolsRDraft }) });
+              await apiJson(`/api/collections/pages/records`, { method: "POST", body: JSON.stringify({ data: toolsRDraft }) });
               await loadToolsPages();
             }}>Add Item</button>
           </div>
@@ -619,19 +621,42 @@ export default function AdminPage() {
           <table className="nb-table">
             <thead>
               <tr className="border-b border-slate-200">
-                {toolsFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                <th className="nb-th">Created</th>
+                {toolsFields
+                  .filter(f => ['name', 'description', 'mainAdvisorId', 'active'].includes(f.key))
+                  .map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
               </tr>
             </thead>
             <tbody>
+              {/* Special "All" row */}
+              <tr 
+                onClick={() => setShowAllPagesModal(true)}
+                className="border-b border-slate-100 hover:bg-blue-50 cursor-pointer bg-blue-50/50"
+              >
+                <td className="nb-td font-semibold text-blue-600">All</td>
+                <td className="nb-td text-gray-600 italic">View all pages summary</td>
+                <td className="nb-td text-gray-600 italic">-</td>
+                <td className="nb-td text-gray-600 italic">-</td>
+              </tr>
+              
+              {/* Regular pages */}
               {toolsRecords.map(r => (
                 <tr 
                   key={r.id} 
                   onClick={() => { setSelectedTool(r); setEditToolData(r.data || {}); setEditingTool(false); }}
                   className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer"
                 >
-                  {toolsFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
-                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                  {toolsFields
+                    .filter(f => ['name', 'description', 'mainAdvisorId', 'active'].includes(f.key))
+                    .map(f => (
+                      <td key={f.id} className="nb-td">
+                        {f.key === 'mainAdvisorId' 
+                          ? advisorsForDropdown.find(a => a.id === r.data?.[f.key])?.name || String(r.data?.[f.key] ?? "")
+                          : f.key === 'active'
+                          ? (r.data?.[f.key] ? '✅ Active' : '❌ Not Active')
+                          : String(r.data?.[f.key] ?? "")
+                        }
+                      </td>
+                    ))}
                 </tr>
               ))}
             </tbody>
@@ -758,35 +783,36 @@ export default function AdminPage() {
           <table className="nb-table">
             <thead>
               <tr className="border-b border-slate-200">
-                {advisorFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                <th className="nb-th">Created</th>
+                {advisorFields
+                  .filter(f => ['name', 'role', 'oneliner', 'prompt'].includes(f.key))
+                  .map(f => <th key={f.id} className="nb-th">{f.key === 'oneliner' ? 'Style' : f.label}</th>)}
               </tr>
             </thead>
             <tbody>
+              {/* Special "All" row */}
+              <tr 
+                onClick={() => setShowAllAdvisorsModal(true)}
+                className="border-b border-slate-100 hover:bg-blue-50 cursor-pointer bg-blue-50/50"
+              >
+                <td className="nb-td font-semibold text-blue-600">All</td>
+                <td className="nb-td text-gray-600 italic">View all advisors summary</td>
+                <td className="nb-td text-gray-600 italic" colSpan={2}>-</td>
+              </tr>
+              
+              {/* Regular advisors */}
               {advisorRecords.map(r=>(
                 <tr 
                   key={r.id} 
                   onClick={() => setSelectedAdvisor(r)}
                   className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  {advisorFields.map(f => (
-                    <td key={f.id} className="nb-td">
-                      {f.type === 'image' ? (
-                        (() => {
-                          const raw = r.data?.[f.key];
-                          const val = raw == null ? "" : String(raw);
-                          if (!val) return "";
-                          const src = val.startsWith("http") || val.startsWith("data:")
-                            ? val
-                            : (val.startsWith("/uploads/") ? val : `/uploads/${val}`);
-                          return <img src={src} alt={f.label} className="w-10 h-10 object-cover rounded" />;
-                        })()
-                      ) : (
-                        String(r.data?.[f.key] ?? "")
-                      )}
-                    </td>
-                  ))}
-                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
+                  {advisorFields
+                    .filter(f => ['name', 'role', 'oneliner', 'prompt'].includes(f.key))
+                    .map(f => (
+                      <td key={f.id} className="nb-td">
+                        {String(r.data?.[f.key] ?? "")}
+                      </td>
+                    ))}
                 </tr>
               ))}
             </tbody>
@@ -1195,15 +1221,38 @@ export default function AdminPage() {
                 <h3 className="text-xl font-normal">{editingCompany ? 'Edit Company' : 'Company Details'}</h3>
                 <div className="flex items-center gap-2">
                   {!editingCompany && (
-                    <button 
-                      onClick={() => {
-                        setEditCompanyData(selectedCompany.data || {});
-                        setEditingCompany(true);
-                      }}
-                      className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
-                    >
-                      Edit
-                    </button>
+                    <>
+                      <button 
+                        onClick={() => {
+                          setEditCompanyData(selectedCompany.data || {});
+                          setEditingCompany(true);
+                        }}
+                        className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to empty all content except the name? This action cannot be undone.')) {
+                            const emptyData: Record<string, unknown> = { name: selectedCompany.data?.name || "" };
+                            companyFields.forEach(field => {
+                              if (field.key !== 'name') {
+                                emptyData[field.key] = field.type === 'json' ? {} : "";
+                              }
+                            });
+                            await apiJson(`/api/collections/companies/records/${selectedCompany.id}`, { 
+                              method: "PUT", 
+                              body: JSON.stringify({ data: emptyData }) 
+                            });
+                            await loadCompanies();
+                            setSelectedCompany({...selectedCompany, data: emptyData});
+                          }
+                        }}
+                        className="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600"
+                      >
+                        Empty Content
+                      </button>
+                    </>
                   )}
                   <button onClick={() => setSelectedCompany(null)} className="text-gray-400 hover:text-gray-600">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1296,7 +1345,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Tools & Pages Details Modal */}
+      {/* Pages Details Modal */}
       {selectedTool && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -1346,6 +1395,16 @@ export default function AdminPage() {
                             <option key={a.id} value={a.id}>{a.name}</option>
                           ))}
                         </select>
+                      ) : field.type === 'boolean' ? (
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(editToolData[field.key])}
+                            onChange={(e) => setEditToolData({...editToolData, [field.key]: e.target.checked})}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{editToolData[field.key] ? 'Active' : 'Not Active'}</span>
+                        </label>
                       ) : (
                         <input
                           type="text"
@@ -1358,6 +1417,8 @@ export default function AdminPage() {
                       <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
                         {field.key === 'mainAdvisorId' ? (
                           advisorsForDropdown.find(a => a.id === String(selectedTool.data?.[field.key] || ''))?.name || 'No data'
+                        ) : field.type === 'boolean' ? (
+                          selectedTool.data?.[field.key] ? '✅ Active' : '❌ Not Active'
                         ) : (
                           String(selectedTool.data?.[field.key] || 'No data')
                         )}
@@ -1370,7 +1431,7 @@ export default function AdminPage() {
                 <div className="mt-6 flex gap-2">
                   <button
                     onClick={async () => {
-                      await apiJson(`/api/collections/tools-pages/records/${selectedTool.id}`, { 
+                      await apiJson(`/api/collections/pages/records/${selectedTool.id}`, { 
                         method: 'PUT', 
                         body: JSON.stringify({ data: editToolData }) 
                       });
@@ -1395,7 +1456,7 @@ export default function AdminPage() {
                   <button
                     onClick={async () => {
                       if (confirm('Delete this item?')) {
-                        await apiJson(`/api/collections/tools-pages/records/${selectedTool.id}`, { method: 'DELETE' });
+                        await apiJson(`/api/collections/pages/records/${selectedTool.id}`, { method: 'DELETE' });
                         setSelectedTool(null);
                         await loadToolsPages();
                       }
@@ -1406,6 +1467,172 @@ export default function AdminPage() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* All Advisors Summary Modal */}
+      {showAllAdvisorsModal && (
+        <div 
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
+          }}
+          onClick={() => setShowAllAdvisorsModal(false)}
+        >
+          <div 
+            style={{
+              width: '100%', maxWidth: '1200px', maxHeight: '90vh',
+              backgroundColor: 'white', borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
+              display: 'flex', flexDirection: 'column'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 flex flex-col h-full" style={{ maxHeight: '90vh' }}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold text-gray-900">All Advisors Summary</h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      const header = "Name\tRole\tPrompt\n";
+                      const rows = advisorRecords.map(advisor => {
+                        const name = String(advisor.data?.name || '');
+                        const role = String(advisor.data?.role || '');
+                        const prompt = String(advisor.data?.prompt || '');
+                        return `${name}\t${role}\t${prompt}`;
+                      }).join('\n');
+                      const content = header + rows;
+                      navigator.clipboard.writeText(content).then(() => {
+                        alert('All advisors data copied to clipboard!');
+                      });
+                    }}
+                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                  <button onClick={() => setShowAllAdvisorsModal(false)} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <table className="w-full border-collapse">
+                  <thead className="sticky top-0 bg-white border-b-2 border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50">Name</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50">Role</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50">Prompt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advisorRecords.map((advisor, index) => (
+                      <tr 
+                        key={advisor.id}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                      >
+                        <td className="px-4 py-3 text-sm text-gray-900 font-medium">{String(advisor.data?.name || '')}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{String(advisor.data?.role || '')}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{String(advisor.data?.prompt || '')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 text-sm text-gray-500 text-center">
+                Total: {advisorRecords.length} advisors
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* All Pages Summary Modal */}
+      {showAllPagesModal && (
+        <div 
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
+          }}
+          onClick={() => setShowAllPagesModal(false)}
+        >
+          <div 
+            style={{
+              width: '100%', maxWidth: '1200px', maxHeight: '90vh',
+              backgroundColor: 'white', borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
+              display: 'flex', flexDirection: 'column'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 flex flex-col h-full" style={{ maxHeight: '90vh' }}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold text-gray-900">All Pages Summary</h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      const header = "Name\tDescription\tMain Advisor\n";
+                      const rows = toolsRecords.map(page => {
+                        const name = String(page.data?.name || '');
+                        const description = String(page.data?.description || '');
+                        const advisor = advisorsForDropdown.find(a => a.id === page.data?.mainAdvisorId)?.name || '-';
+                        return `${name}\t${description}\t${advisor}`;
+                      }).join('\n');
+                      const content = header + rows;
+                      navigator.clipboard.writeText(content).then(() => {
+                        alert('All pages data copied to clipboard!');
+                      });
+                    }}
+                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                  <button onClick={() => setShowAllPagesModal(false)} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <table className="w-full border-collapse">
+                  <thead className="sticky top-0 bg-white border-b-2 border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50">Name</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50">Description</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50">Main Advisor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {toolsRecords.map((page, index) => (
+                      <tr 
+                        key={page.id}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                      >
+                        <td className="px-4 py-3 text-sm text-gray-900 font-medium">{String(page.data?.name || '')}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{String(page.data?.description || '')}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {advisorsForDropdown.find(a => a.id === page.data?.mainAdvisorId)?.name || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 text-sm text-gray-500 text-center">
+                Total: {toolsRecords.length} pages
+              </div>
             </div>
           </div>
         </div>
@@ -1541,9 +1768,6 @@ export default function AdminPage() {
                     onClick={() => {
                       setEditingAdvisor(true);
                       setEditAdvisorData(selectedAdvisor.data || {});
-                      // Load current page assignments
-                      const currentAssignments = (selectedAdvisor.data as any)?.assignedPages || [];
-                      setAdvisorAssignedPages(Array.isArray(currentAssignments) ? currentAssignments : []);
                     }}
                     className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
                   >
@@ -1643,54 +1867,30 @@ export default function AdminPage() {
                   </div>
                 ))}
 
-                {/* Tools & Pages Assignment Section */}
+                {/* Pages as Main Advisor Section */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Assigned Tools & Pages</label>
-                  {editingAdvisor ? (
-                    <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
-                      {toolsRecords.map(page => (
-                        <label key={page.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                          <input
-                            type="checkbox"
-                            checked={advisorAssignedPages.includes(page.id)}
-                            onChange={() => handleAdvisorPageToggle(page.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700">
-                            {String((page.data as any)?.name || 'Unnamed Page')}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                      {(() => {
-                        const assignments = (selectedAdvisor.data as any)?.assignedPages || [];
-                        const assignedPageNames = toolsRecords
-                          .filter(page => assignments.includes(page.id))
-                          .map(page => String((page.data as any)?.name || 'Unnamed Page'));
-                        return assignedPageNames.length > 0 ? assignedPageNames.join(', ') : 'No pages assigned';
-                      })()}
-                    </div>
-                  )}
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Pages as Main Advisor</label>
+                  <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                    {(() => {
+                      const pagesAsMainAdvisor = toolsRecords
+                        .filter(page => (page.data as any)?.mainAdvisorId === selectedAdvisor.id)
+                        .map(page => String((page.data as any)?.name || 'Unnamed Page'));
+                      return pagesAsMainAdvisor.length > 0 ? pagesAsMainAdvisor.join(', ') : 'Not main advisor on any pages';
+                    })()}
+                  </div>
                 </div>
               </div>
               {editingAdvisor && (
                 <div className="flex justify-between items-center p-6 border-t border-gray-200">
                   <button
                     onClick={async () => {
-                      // Include assigned pages in the update
-                      const updatedData = {
-                        ...editAdvisorData,
-                        assignedPages: advisorAssignedPages
-                      };
                       await apiJson(`/api/collections/advisors/records/${selectedAdvisor.id}`, { 
                         method: 'PUT', 
-                        body: JSON.stringify({ data: updatedData }) 
+                        body: JSON.stringify({ data: editAdvisorData }) 
                       });
                       setEditingAdvisor(false);
                       await loadAdvisors();
-                      setSelectedAdvisor({...selectedAdvisor, data: updatedData});
+                      setSelectedAdvisor({...selectedAdvisor, data: editAdvisorData});
                     }}
                     className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                   >

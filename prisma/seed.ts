@@ -1,6 +1,8 @@
 import { config } from "dotenv";
-config({ override: true });
-import { PrismaClient } from "@prisma/client";
+import path from "path";
+config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
+config({ path: path.resolve(process.cwd(), '.env'), override: false });
+import { PrismaClient, FieldType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -9,7 +11,7 @@ const COLLECTIONS = [
   { name: "Structures", slug: "structures" },
   { name: "Companies", slug: "companies" },
   { name: "Tasks", slug: "tasks" },
-  { name: "Tools & Pages", slug: "tools-pages" },
+  { name: "Pages", slug: "pages" },
   { name: "System Prompts", slug: "system-prompts" },
 ] as const;
 
@@ -28,12 +30,12 @@ async function seedAdvisorFields() {
   if (!advisors) return;
 
   const fields = [
-    { label: "Name", key: "name", type: "text", required: true, order: 1 },
-    { label: "Role", key: "role", type: "text", required: false, order: 2 },
-    { label: "One-Liner", key: "oneliner", type: "text", required: false, order: 3 },
-    { label: "Prompt", key: "prompt", type: "text", required: false, order: 4 },
-    { label: "Image", key: "image", type: "image", required: false, order: 5 },
-    { label: "Knowledge Feed", key: "knowledgeFeed", type: "text", required: false, order: 6 },
+    { label: "Name", key: "name", type: FieldType.text, required: true, order: 1 },
+    { label: "Role", key: "role", type: FieldType.text, required: false, order: 2 },
+    { label: "One-Liner", key: "oneliner", type: FieldType.text, required: false, order: 3 },
+    { label: "Prompt", key: "prompt", type: FieldType.text, required: false, order: 4 },
+    { label: "Image", key: "image", type: FieldType.image, required: false, order: 5 },
+    { label: "Knowledge Feed", key: "knowledgeFeed", type: FieldType.text, required: false, order: 6 },
   ];
 
   for (const f of fields) {
@@ -61,11 +63,11 @@ async function seedStructuresCollection() {
   if (!structures) return;
 
   const fields = [
-    { label: "Title", key: "title", type: "text", required: true, order: 1 },
-    { label: "Description", key: "description", type: "richtext", required: false, order: 2 },
-    { label: "Tree", key: "tree", type: "json", required: false, order: 3 },
-    { label: "Compiled", key: "compiled", type: "json", required: false, order: 4 },
-    { label: "Live Preview", key: "livePreview", type: "boolean", required: false, order: 5 },
+    { label: "Title", key: "title", type: FieldType.text, required: true, order: 1 },
+    { label: "Description", key: "description", type: FieldType.richtext, required: false, order: 2 },
+    { label: "Tree", key: "tree", type: FieldType.json, required: false, order: 3 },
+    { label: "Compiled", key: "compiled", type: FieldType.json, required: false, order: 4 },
+    { label: "Live Preview", key: "livePreview", type: FieldType.boolean, required: false, order: 5 },
   ];
 
   for (const f of fields) {
@@ -225,16 +227,18 @@ async function seedStructureTemplates() {
 }
 
 async function seedToolsPagesCollection() {
-  const tools = await prisma.collection.findUnique({ where: { slug: "tools-pages" } });
+  const tools = await prisma.collection.findUnique({ where: { slug: "pages" } });
   if (!tools) return;
 
   const fields = [
-    { label: "Name", key: "name", type: "text", required: true, order: 1 },
-    { label: "Main Advisor", key: "mainAdvisorId", type: "text", required: false, order: 2 },
-    { label: "How it works 1", key: "howItWorks1", type: "text", required: false, order: 3 },
-    { label: "How it works 2", key: "howItWorks2", type: "text", required: false, order: 4 },
-    { label: "How it works 3", key: "howItWorks3", type: "text", required: false, order: 5 },
-    { label: "How it works 4", key: "howItWorks4", type: "text", required: false, order: 6 },
+    { label: "Name", key: "name", type: FieldType.text, required: true, order: 1 },
+    { label: "Main Advisor", key: "mainAdvisorId", type: FieldType.text, required: false, order: 2 },
+    { label: "Description", key: "description", type: FieldType.richtext, required: false, order: 3 },
+    { label: "Active", key: "active", type: FieldType.boolean, required: false, order: 4 },
+    { label: "How it works 1", key: "howItWorks1", type: FieldType.text, required: false, order: 5 },
+    { label: "How it works 2", key: "howItWorks2", type: FieldType.text, required: false, order: 6 },
+    { label: "How it works 3", key: "howItWorks3", type: FieldType.text, required: false, order: 7 },
+    { label: "How it works 4", key: "howItWorks4", type: FieldType.text, required: false, order: 8 },
   ];
 
   for (const f of fields) {
@@ -245,13 +249,14 @@ async function seedToolsPagesCollection() {
     });
   }
 
-  // Seed one record per page (names only)
+  // Seed one record per page (all set to inactive by default)
   const pages = [
-    { name: "Home" },
-    { name: "Login" },
-    { name: "Admin" },
-    { name: "Design Master" },
-    { name: "Data Mapper" },
+    { name: "Home", active: false },
+    { name: "Login", active: false },
+    { name: "Admin", active: false },
+    { name: "Design Master", active: false },
+    { name: "Data Mapper", active: false },
+    { name: "Strategy Planner", active: false },
   ];
   const existing = await prisma.record.findFirst({ where: { collectionId: tools.id } });
   if (!existing) {
@@ -266,12 +271,15 @@ async function seedCompaniesCollection() {
   if (!companies) return;
 
   const fields = [
-    { label: "Name", key: "name", type: "text", required: true, order: 1 },
-    { label: "Description", key: "description", type: "richtext", required: false, order: 2 },
-    { label: "Raw Data", key: "rawData", type: "richtext", required: false, order: 3 },
-    { label: "Data Map", key: "dataMap", type: "json", required: false, order: 4 },
-    { label: "Business Classification", key: "businessClassification", type: "text", required: false, order: 5 },
-    { label: "Business Classification - Additional Details", key: "businessClassificationDetails", type: "richtext", required: false, order: 6 },
+    { label: "Name", key: "name", type: FieldType.text, required: true, order: 1 },
+    { label: "Description", key: "description", type: FieldType.richtext, required: false, order: 2 },
+    { label: "Raw Data", key: "rawData", type: FieldType.richtext, required: false, order: 3 },
+    { label: "Data Map", key: "dataMap", type: FieldType.json, required: false, order: 4 },
+    { label: "Business Classification", key: "businessClassification", type: FieldType.text, required: false, order: 5 },
+    { label: "Business Classification Confidence", key: "businessClassificationConfidence", type: FieldType.text, required: false, order: 6 },
+    { label: "Business Classification Rationale", key: "businessClassificationRationale", type: FieldType.richtext, required: false, order: 7 },
+    { label: "Business Classification Evidence", key: "businessClassificationEvidence", type: FieldType.richtext, required: false, order: 8 },
+    { label: "Business Classification Modeling Implications", key: "businessClassificationModelingImplications", type: FieldType.richtext, required: false, order: 9 },
   ];
 
   for (const f of fields) {
@@ -288,8 +296,8 @@ async function seedTasksCollection() {
   if (!tasks) return;
 
   const fields = [
-    { label: "Name", key: "name", type: "text", required: true, order: 1 },
-    { label: "Task Prompt", key: "taskPrompt", type: "text", required: false, order: 2 },
+    { label: "Name", key: "name", type: FieldType.text, required: true, order: 1 },
+    { label: "Task Prompt", key: "taskPrompt", type: FieldType.text, required: false, order: 2 },
   ];
 
   for (const f of fields) {
@@ -306,8 +314,8 @@ async function seedSystemPromptsCollection() {
   if (!systemPrompts) return;
 
   const fields = [
-    { label: "Name", key: "name", type: "text", required: true, order: 1 },
-    { label: "Content", key: "content", type: "richtext", required: true, order: 2 },
+    { label: "Name", key: "name", type: FieldType.text, required: true, order: 1 },
+    { label: "Content", key: "content", type: FieldType.richtext, required: true, order: 2 },
   ];
 
   for (const f of fields) {

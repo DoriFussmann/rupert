@@ -29,10 +29,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the classification and details from request body
-    const { classification, details } = await request.json()
+    // Get the JSON response from request body
+    const body = await request.json()
 
-    if (!classification) {
+    if (!body.classification) {
       return NextResponse.json(
         { error: 'Classification is required' },
         { status: 400 }
@@ -51,14 +51,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update the company record with the new classification and details
+    // Parse the classification object and format it
+    const classificationObj = body.classification;
+    const businessClassification = classificationObj.business_classification_10 || 
+                                   `${classificationObj.level_1 || ''} - ${classificationObj.level_2 || ''} - ${classificationObj.level_3 || ''}`.trim();
+
+    // Update the company record with the new classification data
     const updatedRecord = await prisma.record.update({
       where: { id: user.company },
       data: {
         data: {
           ...(companyRecord.data as object),
-          businessClassification: classification,
-          businessClassificationDetails: details || ''
+          businessClassification: businessClassification,
+          businessClassificationConfidence: body.confidence !== undefined ? String(body.confidence) : '',
+          businessClassificationRationale: body.rationale || '',
+          businessClassificationEvidence: Array.isArray(body.evidence) ? body.evidence.join('\n• ') : (body.evidence || ''),
+          businessClassificationModelingImplications: body.modeling_implications || ''
         }
       }
     })

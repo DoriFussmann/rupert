@@ -33,17 +33,38 @@ export default function BusinessTaxonomy() {
   
   // Controls like Model Builder
   const [isControlsOpen, setIsControlsOpen] = useState(false);
-  const [temperature, setTemperature] = useState<number>(0.7);
+  const [llm, setLlm] = useState<string>('OpenAI');
+  const [model, setModel] = useState<string>('gpt-4o');
+  const [temperature, setTemperature] = useState<number>(0.3);
   const [topP, setTopP] = useState<number>(1.0);
-  const [maxOutputTokens, setMaxOutputTokens] = useState<number>(2000);
+  const [maxOutputTokens, setMaxOutputTokens] = useState<number>(1800);
+  const [frequencyPenalty, setFrequencyPenalty] = useState<number>(0);
+  const [presencePenalty, setPresencePenalty] = useState<number>(0);
+
+  // Model options based on LLM
+  const modelsByLlm: Record<string, string[]> = {
+    'OpenAI': ['o1', 'o1-preview', 'o1-mini', 'o3-mini', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'],
+    'Anthropic': ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+    'Google': ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'],
+    'Meta': ['llama-3.3-70b-instruct', 'llama-3.1-405b-instruct', 'llama-3.1-70b-instruct', 'llama-3.1-8b-instruct'],
+    'Mistral': ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'mistral-tiny']
+  };
+
+  // Update model when LLM changes
+  const handleLlmChange = (newLlm: string) => {
+    setLlm(newLlm);
+    const models = modelsByLlm[newLlm];
+    if (models && models.length > 0) {
+      setModel(models[0]); // Set to first model of the new LLM
+    }
+  };
   const [isSystemPromptPreviewOpen, setIsSystemPromptPreviewOpen] = useState(false);
   const [isUserPromptOpen, setIsUserPromptOpen] = useState(false);
   const [userPrompt, setUserPrompt] = useState<string>("Hi, I'd like you to figure out what kind of company I run. Ask me a few questions before deciding.");
   const [isPreflightModalOpen, setIsPreflightModalOpen] = useState(false);
   const [isCallingApi, setIsCallingApi] = useState(false);
   const [apiResult, setApiResult] = useState<string | null>(null);
-  const [extractedClassification, setExtractedClassification] = useState<string | null>(null);
-  const [extractedDetails, setExtractedDetails] = useState<string | null>(null);
+  const [extractedClassification, setExtractedClassification] = useState<any>(null);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showSuccessInButton, setShowSuccessInButton] = useState(false);
@@ -62,10 +83,12 @@ export default function BusinessTaxonomy() {
       const sendOpeningMessage = async () => {
         try {
           const payload = {
-            model: "gpt-4o-mini",
+            model: model,
             temperature: temperature,
             top_p: topP,
             max_tokens: maxOutputTokens,
+            frequency_penalty: frequencyPenalty,
+            presence_penalty: presencePenalty,
             messages: [
               {
                 role: "system",
@@ -122,7 +145,8 @@ export default function BusinessTaxonomy() {
   ];
 
   // Dropdown options for each action
-  const dropdownOptions = {
+  type DropdownOption = { label: string; action: () => void } | { separator: true };
+  const dropdownOptions: Record<string, DropdownOption[]> = {
     add: [
       { label: 'Add to Projects', action: () => console.log('Add to Projects') },
       { separator: true },
@@ -161,7 +185,7 @@ export default function BusinessTaxonomy() {
     ],
   };
 
-  const actionItems: Array<{ key: string; title: string; svg: JSX.Element }> = [
+  const actionItems: Array<{ key: string; title: string; svg: React.ReactElement }> = [
     {
       key: 'trash',
       title: 'Clear Outputs',
@@ -253,7 +277,7 @@ export default function BusinessTaxonomy() {
     let cancelled = false;
     (async () => {
       try {
-        const toolsRes = await fetch('/api/collections/tools-pages/records', { headers: { 'Content-Type': 'application/json' } });
+        const toolsRes = await fetch('/api/collections/pages/records', { headers: { 'Content-Type': 'application/json' } });
         if (!toolsRes.ok) return;
         const records: Array<{ id: string; data?: Record<string, unknown> }> = await toolsRes.json();
         const page = records.find(r => String((r.data as any)?.name || '').toLowerCase() === 'business taxonomy');
@@ -288,13 +312,18 @@ export default function BusinessTaxonomy() {
         const promptsRes = await fetch('/api/collections/system-prompts/records', { headers: { 'Content-Type': 'application/json' } });
         if (promptsRes.ok) {
           const records: Array<{ id: string; data?: Record<string, unknown> }> = await promptsRes.json();
-          if (!cancelled) {
-            setSystemPrompts(records as any);
-            if (records.length > 0) {
-              setSelectedSystemPromptId(records[0].id);
-              setSystemPrompt(String((records[0].data as any)?.content || ''));
-            }
+        if (!cancelled) {
+          setSystemPrompts(records as any);
+          if (records.length > 0) {
+            // Find "Business Taxonomy" system prompt
+            const businessTaxPrompt = records.find(r => 
+              String(r.data?.name || '').toLowerCase().includes('business taxonomy')
+            );
+            const defaultPrompt = businessTaxPrompt || records[0];
+            setSelectedSystemPromptId(defaultPrompt.id);
+            setSystemPrompt(String((defaultPrompt.data as any)?.content || ''));
           }
+        }
         }
       } catch (error) {
         console.error('Error loading advisor image:', error);
@@ -356,38 +385,16 @@ export default function BusinessTaxonomy() {
 
   // Handle chat message sending
   // Extract business classification and details from AI response
-  function extractClassificationData(text: string): { classification: string; details: string } | null {
+  function extractClassificationData(text: string): any | null {
     try {
-      // Look for the default format: "✅ Classification: <category>"
-      const emojiMatch = text.match(/✅\s*Classification:\s*(.+?)(?:\n|$)/i);
-      if (emojiMatch && emojiMatch[1]) {
-        const classification = emojiMatch[1].trim();
-        
-        // Extract the full output after the classification for additional details
-        const detailsStart = text.indexOf('✅ Classification:');
-        const details = text.substring(detailsStart);
-        
-        return { classification, details };
-      }
-      
-      // Look for JSON format (when user types "export")
+      // Look for JSON format with the new structure
       const jsonMatch = text.match(/\{[\s\S]*"classification"[\s\S]*\}/);
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
           if (parsed.classification) {
-            // Format the JSON data as readable text for the details field
-            const details = `Classification: ${parsed.classification}\n\n` +
-              `Confidence: ${parsed.confidence || 'N/A'}\n\n` +
-              `Rationale: ${parsed.rationale || 'N/A'}\n\n` +
-              `Evidence:\n${(parsed.evidence || []).map((e: string) => `• ${e}`).join('\n')}\n\n` +
-              `Modeling Implications:\n` +
-              `• Revenue Drivers: ${parsed.modeling_implications?.revenue_drivers || 'N/A'}\n` +
-              `• Direct Costs: ${parsed.modeling_implications?.direct_costs || 'N/A'}\n` +
-              `• Scalability: ${parsed.modeling_implications?.scalability || 'N/A'}\n` +
-              `• Key Focus: ${parsed.modeling_implications?.key_focus || 'N/A'}`;
-            
-            return { classification: parsed.classification, details };
+            // Return the entire parsed JSON object
+            return parsed;
           }
         } catch (e) {
           // Not valid JSON, continue
@@ -418,10 +425,7 @@ export default function BusinessTaxonomy() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          classification: extractedClassification,
-          details: extractedDetails
-        })
+        body: JSON.stringify(extractedClassification)
       });
       
       if (response.ok) {
@@ -456,7 +460,6 @@ export default function BusinessTaxonomy() {
     setShowContinueButton(false);
     setShowSuccessInButton(false);
     setExtractedClassification(null);
-    setExtractedDetails(null);
   }
 
   async function handleSendMessage() {
@@ -501,10 +504,12 @@ export default function BusinessTaxonomy() {
       });
 
       const payload = {
-        model: "gpt-4o-mini",
+        model: model,
         temperature: temperature,
         top_p: topP,
         max_tokens: maxOutputTokens,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
         messages: messages
       };
       
@@ -529,11 +534,10 @@ export default function BusinessTaxonomy() {
         
         setChatMessages(prev => [...prev, advisorMessage]);
         
-        // Try to extract business classification and details from the response
+        // Try to extract business classification JSON from the response
         const classificationData = extractClassificationData(result);
         if (classificationData) {
-          setExtractedClassification(classificationData.classification);
-          setExtractedDetails(classificationData.details);
+          setExtractedClassification(classificationData);
         }
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -676,10 +680,12 @@ export default function BusinessTaxonomy() {
     }
 
     return {
-      model: "gpt-4o-mini",
+      model: model,
       temperature: temperature,
       top_p: topP,
       max_tokens: maxOutputTokens,
+      frequency_penalty: frequencyPenalty,
+      presence_penalty: presencePenalty,
       messages: messages
     };
   }
@@ -1178,15 +1184,15 @@ export default function BusinessTaxonomy() {
                     <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
                       <div className="py-2">
                         {dropdownOptions[a.key as keyof typeof dropdownOptions]?.map((option, optIdx) => (
-                          option.separator ? (
+                          'separator' in option && option.separator ? (
                             <hr key={`sep-${optIdx}`} className="my-1 border-gray-200" />
                           ) : (
                             <button
                               key={`opt-${optIdx}`}
-                              onClick={option.action}
+                              onClick={'action' in option ? option.action : undefined}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                             >
-                              {option.label}
+                              {'label' in option ? option.label : ''}
                             </button>
                           )
                         ))}
@@ -1203,13 +1209,57 @@ export default function BusinessTaxonomy() {
 
       {/* Controls Panel (no backdrop), matches Model Builder styling */}
       {isControlsOpen && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full max-w-md" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full" style={{ fontFamily: 'Inter, system-ui, sans-serif', maxWidth: '672px' }}>
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
               <h3 className="text-sm text-gray-900">Controls</h3>
               <button onClick={() => setIsControlsOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
             </div>
-            <div className="p-4 space-y-3">
+            <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3">
+              {/* LLM Selection */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">LLM</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{llm}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {['OpenAI', 'Anthropic', 'Google', 'Meta', 'Mistral'].map(llmOption => (
+                        <button key={llmOption} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => handleLlmChange(llmOption)}>
+                          {llmOption}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Model Selection */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Model</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{model}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {modelsByLlm[llm]?.map(modelOption => (
+                        <button key={modelOption} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setModel(modelOption)}>
+                          {modelOption}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Temperature */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Temperature</label>
@@ -1222,7 +1272,7 @@ export default function BusinessTaxonomy() {
                   </button>
                   <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <div className="py-2 max-h-64 overflow-auto">
-                      {[0,0.2,0.4,0.7,1.0,1.3,1.8,2.0].map(t => (
+                      {[0,0.2,0.3,0.4,0.7,1.0,1.3,1.8,2.0].map(t => (
                         <button key={t} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setTemperature(t)}>
                           {t.toFixed(1)}
                         </button>
@@ -1266,9 +1316,53 @@ export default function BusinessTaxonomy() {
                   </button>
                   <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <div className="py-2 max-h-64 overflow-auto">
-                      {[1000,2000,3000,4000,5000,8000,10000,16000,32000].map(tok => (
+                      {[1000,1500,1800,2000,3000,4000,5000,8000,10000,16000,32000].map(tok => (
                         <button key={tok} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setMaxOutputTokens(tok)}>
                           {tok.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Frequency Penalty */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Frequency Penalty</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(frequencyPenalty).toFixed(1)}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0,0.1,0.2,0.3,0.5,0.7,1.0,1.5,2.0].map(fp => (
+                        <button key={fp} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setFrequencyPenalty(fp)}>
+                          {fp.toFixed(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Presence Penalty */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Presence Penalty</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(presencePenalty).toFixed(1)}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0,0.1,0.2,0.3,0.5,0.7,1.0,1.5,2.0].map(pp => (
+                        <button key={pp} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setPresencePenalty(pp)}>
+                          {pp.toFixed(1)}
                         </button>
                       ))}
                     </div>

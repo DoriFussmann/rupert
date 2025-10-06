@@ -16,11 +16,11 @@ export default function NavigationHeader() {
   const [pages, setPages] = useState<PageRecord[]>([]);
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
 
-  // Load pages from Tools & Pages collection
+  // Load pages from Pages collection
   useEffect(() => {
     async function loadPages() {
       try {
-        const response = await fetch('/api/collections/tools-pages/records');
+        const response = await fetch('/api/collections/pages/records');
         if (response.ok) {
           const records: PageRecord[] = await response.json();
           setPages(records);
@@ -77,6 +77,7 @@ export default function NavigationHeader() {
     if (name.includes('admin')) return '⚙️';
     if (name.includes('login')) return '🔐';
     if (name.includes('taxonomy') || name.includes('business')) return '🏢';
+    if (name.includes('strategy') || name.includes('planner')) return '🎯';
     return '📄'; // Default emoji for other pages
   };
 
@@ -92,7 +93,7 @@ export default function NavigationHeader() {
         return 'Home';
     }
     
-    // For dynamic pages, try to find the page name from the Tools & Pages collection
+    // For dynamic pages, try to find the page name from the Pages collection
     const slug = path.replace('/', '');
     const matchingPage = pages.find(page => {
       const pageName = String(page.data?.name || '');
@@ -151,7 +152,7 @@ export default function NavigationHeader() {
                     🏠 Home
                   </Link>
                   
-                  {/* Dynamic pages from Tools & Pages collection */}
+                  {/* Dynamic pages from Pages collection */}
                   {pages
                     .filter(page => {
                       const name = String(page.data?.name || '').toLowerCase();

@@ -2,7 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import NavigationHeader from "../components/NavigationHeader";
 
-export default function DesignMaster() {
+type DropdownOption = { label: string; action: () => void; separator?: never } | { separator: true; label?: never; action?: never };
+
+export default function StrategyPlanner() {
   const [outputsExpanded, setOutputsExpanded] = useState(false);
   const [inputsCollapsed, setInputsCollapsed] = useState(false);
   const [advisorImageUrl, setAdvisorImageUrl] = useState<string | null>(null);
@@ -35,18 +37,26 @@ export default function DesignMaster() {
     if (chatMessages.length === 0 && advisorName && advisorName.toLowerCase() !== 'advisor') {
       setChatMessages([{ id: 'greet', text: `Hello, I am ${advisorName}.`, timestamp: new Date(), isUser: false }]);
     }
-  }, [advisorName]);
+  }, [advisorName, chatMessages.length]);
   // Controls like Model Builder
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [llm, setLlm] = useState<string>('OpenAI');
-  const [model, setModel] = useState<string>('gpt-4o-mini');
-  const [responseFormat, setResponseFormat] = useState<'json_object' | 'text' | 'xml'>('json_object');
+  const [model, setModel] = useState<string>('gpt-4o');
+  const [responseFormat, setResponseFormat] = useState<'json_object' | 'text' | 'xml'>('text');
   const [temperature, setTemperature] = useState<number>(0.7);
   const [topP, setTopP] = useState<number>(1.0);
   const [maxOutputTokens, setMaxOutputTokens] = useState<number>(5000);
   const [isSystemPromptPreviewOpen, setIsSystemPromptPreviewOpen] = useState(false);
   const [isUserPromptOpen, setIsUserPromptOpen] = useState(false);
   const [userPrompt, setUserPrompt] = useState<string>("");
+  const [isPreflightOpen, setIsPreflightOpen] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<{
+    message: string;
+    payload?: any;
+    response?: any;
+    stack?: string;
+    timestamp: Date;
+  } | null>(null);
 
   // Model options based on LLM
   const modelsByLlm: Record<string, string[]> = {
@@ -75,7 +85,7 @@ export default function DesignMaster() {
   ];
 
   // Dropdown options for each action
-  const dropdownOptions = {
+  const dropdownOptions: Record<string, DropdownOption[]> = {
     add: [
       { label: 'Add to Projects', action: () => console.log('Add to Projects') },
       { separator: true },
@@ -114,7 +124,7 @@ export default function DesignMaster() {
     ],
   };
 
-  const actionItems: Array<{ key: string; title: string; svg: JSX.Element }> = [
+  const actionItems: Array<{ key: string; title: string; svg: React.ReactElement }> = [
     {
       key: 'trash',
       title: 'Clear Outputs',
@@ -212,8 +222,8 @@ export default function DesignMaster() {
         if (!toolsRes.ok) return;
         const records: Array<{ id: string; data?: Record<string, unknown> }> = await toolsRes.json();
         console.log('Pages records:', records);
-        const page = records.find(r => String((r.data as any)?.name || '').toLowerCase() === 'design master');
-        console.log('Design Master page record:', page);
+        const page = records.find(r => String((r.data as any)?.name || '').toLowerCase() === 'strategy planner');
+        console.log('Strategy Planner page record:', page);
         const advisorId = page?.data ? (page.data as any).mainAdvisorId : null;
         console.log('Advisor ID:', advisorId);
         const hiw: string[] = page?.data ? [
@@ -224,7 +234,7 @@ export default function DesignMaster() {
         ].filter(Boolean) : [];
         if (!cancelled) setHowItWorksTexts(hiw);
         if (!advisorId) {
-          console.log('No advisor ID found for Design Master page');
+          console.log('No advisor ID found for Strategy Planner page');
           return;
         }
         const advRes = await fetch(`/api/collections/advisors/records/${advisorId}`, { headers: { 'Content-Type': 'application/json' } });
@@ -245,7 +255,7 @@ export default function DesignMaster() {
           const records: Array<{ id: string; data?: Record<string, unknown> }> = await promptsRes.json();
           if (!cancelled) {
             setSystemPrompts(records as any);
-            const def = (records as any[]).find(p => (p?.data as any)?.name === 'FP&A Modeling Assistant');
+            const def = (records as any[]).find(p => (p?.data as any)?.name === 'Strategy Planner');
             if (def) {
               setSelectedSystemPromptId(def.id);
               const content = (def.data as any)?.content ? String((def.data as any).content) : '';
@@ -281,7 +291,7 @@ export default function DesignMaster() {
       }, 500);
     }
     return () => { if (actionsIntervalRef.current) clearInterval(actionsIntervalRef.current); };
-  }, [showActions]);
+  }, [showActions, actionItems.length]);
 
   // Rotate loading messages every 2.5s while simulating
   useEffect(() => {
@@ -295,7 +305,7 @@ export default function DesignMaster() {
       if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current);
     }
     return () => { if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current); };
-  }, [isSimulating]);
+  }, [isSimulating, loadingMessages.length]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -305,7 +315,7 @@ export default function DesignMaster() {
   }, [chatMessages]);
 
   // Handle chat message sending
-  function handleSendMessage() {
+  async function handleSendMessage() {
     if (!chatInput.trim()) return;
     
     const userMessage = {
@@ -316,29 +326,85 @@ export default function DesignMaster() {
     };
     
     setChatMessages(prev => [...prev, userMessage]);
+    const userMessageText = chatInput.trim();
     setChatInput('');
     setIsTypingResponse(true);
-    
-    // Simulate advisor response after a short delay
-    setTimeout(() => {
-      const responses = [
-        "That's an interesting perspective! Let me help you explore that further.",
-        "I can definitely assist with that. Here are some design considerations...",
-        "Great question! Based on your requirements, I'd recommend...",
-        "Let me analyze that for you. This approach could work well because...",
-        "I see what you're looking for. Have you considered these alternatives?"
-      ];
+
+    try {
+      // Build payload with current user message
+      const payload = buildPayload();
+      // Add or update the user message in the payload
+      const userMessageIndex = payload.messages.findIndex(m => m.role === 'user');
+      if (userMessageIndex >= 0) {
+        payload.messages[userMessageIndex].content = userMessageText;
+      } else {
+        payload.messages.push({
+          role: 'user',
+          content: userMessageText
+        });
+      }
+
+      // Make actual API call
+      const response = await fetch('/api/openai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        responseData = { error: 'Failed to parse response', rawResponse: await response.text() };
+      }
+
+      if (!response.ok) {
+        // Capture detailed error information
+        setErrorDetails({
+          message: `API Error ${response.status}: ${response.statusText}`,
+          payload: payload,
+          response: responseData,
+          timestamp: new Date()
+        });
+        throw new Error(`API error: ${response.status} - ${JSON.stringify(responseData)}`);
+      }
+
+      // Handle both response formats: our API wrapper and direct OpenAI format
+      const assistantText = responseData.response || 
+                           responseData.choices?.[0]?.message?.content || 
+                           'No response received.';
       
       const advisorMessage = {
         id: (Date.now() + 1).toString(),
-        text: responses[Math.floor(Math.random() * responses.length)],
+        text: assistantText,
         timestamp: new Date(),
         isUser: false
       };
       
       setChatMessages(prev => [...prev, advisorMessage]);
+      startTyping(assistantText);
+    } catch (error) {
+      console.error('Chat error:', error);
+      
+      // If errorDetails wasn't set yet, set it now
+      if (!errorDetails) {
+        setErrorDetails({
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date()
+        });
+      }
+      
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        text: `❌ Error: ${error instanceof Error ? error.message : 'Failed to get response'} - Click the error icon in the bottom right to see details`,
+        timestamp: new Date(),
+        isUser: false
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTypingResponse(false);
-    }, 1500 + Math.random() * 1000);
+    }
   }
 
   function handleChatKeyPress(e: React.KeyboardEvent) {
@@ -452,22 +518,52 @@ export default function DesignMaster() {
   const [selectedSystemPromptId, setSelectedSystemPromptId] = useState<string>("");
   const [systemPrompt, setSystemPrompt] = useState<string>("");
 
+  // Advisor and Pages Selectors (default to "all")
+  const [selectedAdvisorId, setSelectedAdvisorId] = useState<string>("all");
+  const [selectedPageId, setSelectedPageId] = useState<string>("all");
+  const [advisors, setAdvisors] = useState<Array<{ id: string; data: { name?: string; role?: string; prompt?: string; [key: string]: any } }>>([]);
+  const [pages, setPages] = useState<Array<{ id: string; data: { name?: string; description?: string; mainAdvisorId?: string; [key: string]: any } }>>([]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // Load system prompts
         const promptsRes = await fetch('/api/collections/system-prompts/records', { headers: { 'Content-Type': 'application/json' } });
-        if (!promptsRes.ok) return;
-        const records: Array<{ id: string; data?: { name?: string; content?: string } }> = await promptsRes.json();
-        if (!cancelled) {
-          setSystemPrompts(records as any);
-          if (records.length > 0) {
-            setSelectedSystemPromptId(records[0].id);
-            setSystemPrompt(String(records[0].data?.content || ''));
+        if (promptsRes.ok) {
+          const records: Array<{ id: string; data?: { name?: string; content?: string } }> = await promptsRes.json();
+          if (!cancelled) {
+            setSystemPrompts(records as any);
+            const def = (records as any[]).find(p => (p?.data as any)?.name === 'Strategy Planner');
+            if (def) {
+              setSelectedSystemPromptId(def.id);
+              setSystemPrompt(String(def.data?.content || ''));
+            } else if (records.length > 0) {
+              setSelectedSystemPromptId(records[0].id);
+              setSystemPrompt(String(records[0].data?.content || ''));
+            }
+          }
+        }
+
+        // Load advisors
+        const advisorsRes = await fetch('/api/collections/advisors/records', { headers: { 'Content-Type': 'application/json' } });
+        if (advisorsRes.ok) {
+          const advisorRecords = await advisorsRes.json();
+          if (!cancelled) {
+            setAdvisors(advisorRecords);
+          }
+        }
+
+        // Load pages
+        const pagesRes = await fetch('/api/collections/pages/records', { headers: { 'Content-Type': 'application/json' } });
+        if (pagesRes.ok) {
+          const pageRecords = await pagesRes.json();
+          if (!cancelled) {
+            setPages(pageRecords);
           }
         }
       } catch (error) {
-        console.error('Error loading system prompts:', error);
+        console.error('Error loading data:', error);
       }
     })();
     return () => { cancelled = true; };
@@ -480,15 +576,129 @@ export default function DesignMaster() {
     setSystemPrompt(content);
   }
 
+  // Build payload from all selections
+  function buildPayload() {
+    // Get advisor text with full details - if "all", list all advisors with role & prompt
+    let advisorText = '';
+    if (selectedAdvisorId === 'all') {
+      if (advisors.length === 0) {
+        advisorText = 'All (no advisors found)';
+      } else {
+        const advisorDetails = advisors.map((a, idx) => {
+          const name = a.data?.name || 'Unnamed';
+          const role = a.data?.role || 'No role specified';
+          const prompt = a.data?.prompt || 'No prompt specified';
+          return `${idx + 1}. ${name}
+   Role: ${role}
+   Prompt: ${prompt}`;
+        }).join('\n\n');
+        advisorText = `All Advisors:\n${advisorDetails}`;
+      }
+    } else if (selectedAdvisorId) {
+      const advisor = advisors.find(a => a.id === selectedAdvisorId);
+      if (advisor) {
+        const name = advisor.data?.name || 'Unnamed';
+        const role = advisor.data?.role || 'No role specified';
+        const prompt = advisor.data?.prompt || 'No prompt specified';
+        advisorText = `${name}
+   Role: ${role}
+   Prompt: ${prompt}`;
+      } else {
+        advisorText = selectedAdvisorId;
+      }
+    } else {
+      advisorText = 'None selected';
+    }
+
+    // Get page text with full details - if "all", list all pages with description & main advisor
+    let pageText = '';
+    if (selectedPageId === 'all') {
+      if (pages.length === 0) {
+        pageText = 'All (no pages found)';
+      } else {
+        const pageDetails = pages.map((p, idx) => {
+          const name = p.data?.name || 'Unnamed';
+          const description = p.data?.description || 'No description';
+          const mainAdvisorId = p.data?.mainAdvisorId;
+          let mainAdvisorName = 'None';
+          if (mainAdvisorId) {
+            const mainAdvisor = advisors.find(a => a.id === mainAdvisorId);
+            mainAdvisorName = mainAdvisor?.data?.name || mainAdvisorId;
+          }
+          return `${idx + 1}. ${name}
+   Description: ${description}
+   Main Advisor: ${mainAdvisorName}`;
+        }).join('\n\n');
+        pageText = `All Pages:\n${pageDetails}`;
+      }
+    } else if (selectedPageId) {
+      const page = pages.find(p => p.id === selectedPageId);
+      if (page) {
+        const name = page.data?.name || 'Unnamed';
+        const description = page.data?.description || 'No description';
+        const mainAdvisorId = page.data?.mainAdvisorId;
+        let mainAdvisorName = 'None';
+        if (mainAdvisorId) {
+          const mainAdvisor = advisors.find(a => a.id === mainAdvisorId);
+          mainAdvisorName = mainAdvisor?.data?.name || mainAdvisorId;
+        }
+        pageText = `${name}
+   Description: ${description}
+   Main Advisor: ${mainAdvisorName}`;
+      } else {
+        pageText = selectedPageId;
+      }
+    } else {
+      pageText = 'None selected';
+    }
+
+    // Build enhanced system prompt with advisor and page info appended
+    const enhancedSystemPrompt = `${systemPrompt}
+
+--- Additional Context ---
+
+Selected Advisor(s):
+${advisorText}
+
+Selected Page(s):
+${pageText}`;
+
+    // Build the payload
+    const messages: Array<{ role: string; content: string }> = [
+      {
+        role: "system",
+        content: enhancedSystemPrompt
+      }
+    ];
+    
+    // Only add user message if there's actual content
+    if (userPrompt && userPrompt.trim()) {
+      messages.push({
+        role: "user",
+        content: userPrompt.trim()
+      });
+    }
+    
+    return {
+      llm: llm,
+      model: model,
+      response_format: { type: responseFormat },
+      temperature: temperature,
+      top_p: topP,
+      max_tokens: maxOutputTokens,
+      messages: messages
+    };
+  }
+
   return (
     <>
       <NavigationHeader />
       <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
         <div className={`flex ${outputsExpanded ? "gap-0" : "gap-4"}`}>
-          {/* Left Panel - 25% width, aligned with page name ribbon */}
+          {/* Left Panel - 40% width, aligned with page name ribbon */}
           <div
             className="relative"
-            style={{ width: outputsExpanded ? "0%" : "25%", transition: "width 200ms ease", pointerEvents: outputsExpanded ? "none" : "auto" }}
+            style={{ width: outputsExpanded ? "0%" : "40%", transition: "width 200ms ease", pointerEvents: outputsExpanded ? "none" : "auto" }}
           >
             <div className={`bg-white rounded-md border border-gray-200 ${outputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200 ${isInputsPanelBlinking ? "nb-anim-inputs-panel-blink" : ""}`}>
               <button
@@ -518,7 +728,7 @@ export default function DesignMaster() {
               >
                 <div className="p-4">
                 {/* Image placeholder at top */}
-                <div className="w-full h-64 bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
+                <div className="w-full h-[410px] bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
                   {advisorImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img 
@@ -612,7 +822,7 @@ export default function DesignMaster() {
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyPress={handleChatKeyPress}
-                        placeholder="Ask me about design..."
+                        placeholder="Ask me about strategy..."
                         className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-0"
                         style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                         disabled={isTypingResponse}
@@ -661,6 +871,76 @@ export default function DesignMaster() {
                   </div>
                 </div>
 
+                {/* Advisor Selector */}
+                <div className="relative group mt-3">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{selectedAdvisorId === 'all' ? 'All' : (advisors.find(a => a.id === selectedAdvisorId)?.data?.name) || 'Advisor'}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        onClick={() => setSelectedAdvisorId("")}
+                      >
+                        -- Select an Advisor --
+                      </button>
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        onClick={() => setSelectedAdvisorId('all')}
+                      >
+                        All
+                      </button>
+                      {advisors.map(advisor => (
+                        <button
+                          key={advisor.id}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                          onClick={() => setSelectedAdvisorId(advisor.id)}
+                        >
+                          {advisor.data?.name || 'Unnamed'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pages Selector */}
+                <div className="relative group mt-3">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{selectedPageId === 'all' ? 'All' : (pages.find(p => p.id === selectedPageId)?.data?.name) || 'Page'}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        onClick={() => setSelectedPageId("")}
+                      >
+                        -- Select a Page --
+                      </button>
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                        onClick={() => setSelectedPageId('all')}
+                      >
+                        All
+                      </button>
+                      {pages.map(page => (
+                        <button
+                          key={page.id}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                          onClick={() => setSelectedPageId(page.id)}
+                        >
+                          {page.data?.name || 'Unnamed'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Controls button (like Model Builder) */}
                 <div className="mt-3">
                   <button
@@ -696,7 +976,7 @@ export default function DesignMaster() {
                     try {
                       setIsSimulating(true);
                       setSimulateResult(null);
-                      const res = await fetch('/api/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: 'design-master' }) });
+                      const res = await fetch('/api/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: 'strategy-planner' }) });
                       const json = await res.json().catch(() => ({ ok: false }));
                       setSimulateResult({ ok: Boolean(json?.ok), elapsedMs: Number(json?.elapsedMs || 0), startedAt: Number(json?.startedAt || Date.now()), finishedAt: Number(json?.finishedAt || Date.now()) });
                       if (json?.ok) {
@@ -721,8 +1001,7 @@ export default function DesignMaster() {
                     type="button"
                     className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                     onClick={() => {
-                      // TODO: Wire to actual preflight once payload is defined for Design Master
-                      console.log('Preflight clicked');
+                      setIsPreflightOpen(true);
                     }}
                   >
                     Preflight
@@ -730,9 +1009,82 @@ export default function DesignMaster() {
                   <button
                     type="button"
                     className="flex-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
-                    onClick={() => {
-                      // TODO: Wire to actual call once payload is defined for Design Master
-                      console.log('Call clicked');
+                    onClick={async () => {
+                      if (!userPrompt.trim()) {
+                        alert('Please enter a user prompt first');
+                        return;
+                      }
+                      
+                      setIsTypingResponse(true);
+                      
+                      try {
+                        const payload = buildPayload();
+                        console.log('Calling API with payload:', payload);
+                        
+                        const response = await fetch('/api/openai/chat', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload),
+                        });
+
+                        let responseData;
+                        try {
+                          responseData = await response.json();
+                        } catch (parseError) {
+                          responseData = { error: 'Failed to parse response', rawResponse: await response.text() };
+                        }
+
+                        if (!response.ok) {
+                          // Capture detailed error information
+                          setErrorDetails({
+                            message: `API Error ${response.status}: ${response.statusText}`,
+                            payload: payload,
+                            response: responseData,
+                            timestamp: new Date()
+                          });
+                          throw new Error(`API error: ${response.status} - ${JSON.stringify(responseData)}`);
+                        }
+
+                        // Handle both response formats: our API wrapper and direct OpenAI format
+                        const assistantText = responseData.response || 
+                                             responseData.choices?.[0]?.message?.content || 
+                                             'No response received.';
+                        
+                        // Add both user and assistant messages to chat
+                        const userMessage = {
+                          id: Date.now().toString(),
+                          text: userPrompt,
+                          timestamp: new Date(),
+                          isUser: true
+                        };
+                        
+                        const assistantMessage = {
+                          id: (Date.now() + 1).toString(),
+                          text: assistantText,
+                          timestamp: new Date(),
+                          isUser: false
+                        };
+                        
+                        setChatMessages(prev => [...prev, userMessage, assistantMessage]);
+                        setUserPrompt('');
+                        setIsUserPromptOpen(false);
+                        startTyping(assistantText);
+                      } catch (error) {
+                        console.error('API call error:', error);
+                        
+                        // If errorDetails wasn't set yet, set it now
+                        if (!errorDetails) {
+                          setErrorDetails({
+                            message: error instanceof Error ? error.message : 'Unknown error',
+                            stack: error instanceof Error ? error.stack : undefined,
+                            timestamp: new Date()
+                          });
+                        }
+                        
+                        alert(`Error: ${error instanceof Error ? error.message : 'Failed to get response'}\n\nClick the error icon in the bottom right to see full details.`);
+                      } finally {
+                        setIsTypingResponse(false);
+                      }
                     }}
                   >
                     Call
@@ -743,10 +1095,10 @@ export default function DesignMaster() {
             </div>
           </div>
 
-          {/* Right Panel - 75% width, Outputs Panel */}
+          {/* Right Panel - 60% width, Outputs Panel */}
           <div
             className="overflow-hidden"
-            style={{ width: outputsExpanded ? "100%" : "calc(75% - 0.5rem)", transition: "width 200ms ease" }}
+            style={{ width: outputsExpanded ? "100%" : "calc(60% - 0.5rem)", transition: "width 200ms ease" }}
           >
             <div className={`bg-white rounded-md border border-gray-200 transition-colors relative ${isOutputsPanelBlinking ? "nb-anim-outputs-panel-blink" : ""}`}>
               <div 
@@ -863,15 +1215,15 @@ export default function DesignMaster() {
                       <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
                         <div className="py-2">
                           {dropdownOptions[a.key as keyof typeof dropdownOptions]?.map((option, optIdx) => (
-                            option.separator ? (
+                            'separator' in option && option.separator ? (
                               <hr key={`sep-${optIdx}`} className="my-1 border-gray-200" />
                             ) : (
                               <button
                                 key={`opt-${optIdx}`}
-                                onClick={option.action}
+                                onClick={'action' in option ? option.action : undefined}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                               >
-                                {option.label}
+                                {'label' in option ? option.label : ''}
                               </button>
                             )
                           ))}
@@ -1069,6 +1421,161 @@ export default function DesignMaster() {
                 className="w-full h-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono"
                 placeholder="Enter user prompt..."
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preflight Payload Modal */}
+      {isPreflightOpen && (
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-md p-6 w-full max-w-4xl mx-4 flex flex-col" style={{ aspectRatio: '16/9', fontFamily: 'Inter, system-ui, sans-serif' }}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Preflight Payload</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const payload = buildPayload();
+                      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+                      // Could add a "Copied!" notification here
+                    } catch (error) {
+                      console.error('Failed to copy payload:', error);
+                    }
+                  }}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  Copy
+                </button>
+                <button 
+                  onClick={() => setIsPreflightOpen(false)} 
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <pre className="text-sm font-mono bg-gray-50 p-4 rounded-md whitespace-pre-wrap">
+                {JSON.stringify(buildPayload(), null, 2)}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Error Debug Button */}
+      {errorDetails && (
+        <div
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 cursor-pointer animate-pulse"
+          title="View Error Details - Click to see debug info"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      )}
+
+      {/* Error Details Debug Modal */}
+      {errorDetails && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60]"
+          onClick={() => setErrorDetails(null)}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col shadow-2xl"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-semibold text-red-600">Error Debug Log</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {errorDetails.timestamp.toLocaleString()}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    const debugInfo = {
+                      timestamp: errorDetails.timestamp.toISOString(),
+                      message: errorDetails.message,
+                      payload: errorDetails.payload,
+                      response: errorDetails.response,
+                      stack: errorDetails.stack
+                    };
+                    try {
+                      await navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2));
+                      alert('Error details copied to clipboard!');
+                    } catch (error) {
+                      console.error('Failed to copy:', error);
+                    }
+                  }}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  📋 Copy All
+                </button>
+                <button 
+                  onClick={() => setErrorDetails(null)} 
+                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none px-2"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {/* Error Message */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Error Message:</h3>
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-sm text-red-800 font-mono whitespace-pre-wrap break-all">
+                    {errorDetails.message}
+                  </p>
+                </div>
+              </div>
+
+              {/* Request Payload */}
+              {errorDetails.payload && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Request Payload:</h3>
+                  <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                    {JSON.stringify(errorDetails.payload, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Response Data */}
+              {errorDetails.response && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Response Data:</h3>
+                  <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                    {JSON.stringify(errorDetails.response, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Stack Trace */}
+              {errorDetails.stack && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Stack Trace:</h3>
+                  <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                    {errorDetails.stack}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
+              <p className="text-xs text-gray-500">
+                💡 Tip: Use the "Copy All" button to share this debug info
+              </p>
+              <button
+                onClick={() => setErrorDetails(null)}
+                className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
