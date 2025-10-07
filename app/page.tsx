@@ -36,11 +36,8 @@ interface ToolsPageRecord {
   data?: {
     name?: string;
     description?: string;
-<<<<<<< HEAD
     active?: boolean;
-=======
     mainAdvisorId?: string;
->>>>>>> 3ef7cf127bc07c6b4ea1a5b07183ad580ad96172
     [key: string]: unknown;
   };
 }
@@ -106,7 +103,6 @@ export default function Home() {
   // Track which advisors are expanded (show all pages)
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
 
-<<<<<<< HEAD
   // Helper function to get pages where advisor is Main Advisor
   const getPagesAsMainAdvisor = (advisor: AdvisorRecord): ToolsPageRecord[] => {
     console.log('Getting pages where advisor is Main Advisor:', advisor.data?.name);
@@ -117,11 +113,6 @@ export default function Home() {
     
     console.log('Filtered pages as Main Advisor:', pages);
     return pages;
-=======
-  // Helper function to get assigned tools & pages for an advisor (by mainAdvisorId)
-  const getAssignedToolsPages = (advisor: AdvisorRecord): ToolsPageRecord[] => {
-    return toolsPages.filter(tool => tool.data?.mainAdvisorId === advisor.id);
->>>>>>> 3ef7cf127bc07c6b4ea1a5b07183ad580ad96172
   };
 
   // Helper function to convert page name to URL slug
@@ -134,15 +125,9 @@ export default function Home() {
 
   // Helper function to get the first page URL for an advisor where they are Main Advisor
   const getAdvisorPageUrl = (advisor: AdvisorRecord): string | null => {
-<<<<<<< HEAD
     const pages = getPagesAsMainAdvisor(advisor);
     if (pages.length > 0) {
       const pageName = pages[0].data?.name;
-=======
-    const assignedPagesForAdvisor = getAssignedToolsPages(advisor);
-    if (assignedPagesForAdvisor.length > 0) {
-      const pageName = assignedPagesForAdvisor[0].data?.name;
->>>>>>> 3ef7cf127bc07c6b4ea1a5b07183ad580ad96172
       if (pageName) {
         return `/${getPageSlug(String(pageName))}`;
       }
@@ -207,10 +192,7 @@ export default function Home() {
         const toolsResponse = await fetch('/api/collections/pages/records');
         if (toolsResponse.ok) {
           const toolsData: ToolsPageRecord[] = await toolsResponse.json();
-<<<<<<< HEAD
           console.log('Pages data:', toolsData);
-=======
->>>>>>> 3ef7cf127bc07c6b4ea1a5b07183ad580ad96172
           setToolsPages(toolsData);
         }
       } catch (error) {
