@@ -111,8 +111,16 @@ export default function Home() {
       tool.data?.mainAdvisorId === advisor.id
     );
     
-    console.log('Filtered pages as Main Advisor:', pages);
-    return pages;
+    // Sort pages: active pages first, then inactive
+    const sortedPages = pages.sort((a, b) => {
+      const aActive = Boolean(a.data?.active);
+      const bActive = Boolean(b.data?.active);
+      if (aActive === bActive) return 0;
+      return aActive ? -1 : 1; // Active pages come first
+    });
+    
+    console.log('Filtered pages as Main Advisor:', sortedPages);
+    return sortedPages;
   };
 
   // Helper function to convert page name to URL slug
@@ -173,10 +181,11 @@ export default function Home() {
         const advisorsResponse = await fetch('/api/collections/advisors/records');
         if (advisorsResponse.ok) {
           const records: AdvisorRecord[] = await advisorsResponse.json();
-          // Prioritize Rupert first, Jade second (case-insensitive name contains)
+          // Prioritize Rupert first, Gideon second, Jade third (case-insensitive name contains)
           const score = (name: string): number => {
             const n = name.toLowerCase();
-            if (n.includes('rupert')) return 2;
+            if (n.includes('rupert')) return 3;
+            if (n.includes('gideon')) return 2;
             if (n.includes('jade')) return 1;
             return 0;
           };

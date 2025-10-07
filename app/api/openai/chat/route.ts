@@ -3,23 +3,29 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Chat API: Received request');
+    console.log('🟢 Chat API: Received request');
     
     const body = await request.json();
-    console.log('Chat API: Request body keys:', Object.keys(body));
+    console.log('🟢 Chat API: Request body keys:', Object.keys(body));
+    console.log('🟢 Chat API: Body contains messages?', body.messages ? 'YES' : 'NO');
+    console.log('🟢 Chat API: Body.messages is array?', Array.isArray(body.messages) ? 'YES' : 'NO');
     
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
-      console.error('Chat API: OpenAI API key not found');
+      console.error('❌ Chat API: OpenAI API key not found');
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
+    console.log('🟢 Chat API: OpenAI API key found');
+
     // Check if this is a direct OpenAI payload (from Model Builder)
     if (body.messages && Array.isArray(body.messages)) {
-      console.log('Chat API: Direct OpenAI payload detected');
+      console.log('🟢 Chat API: Direct OpenAI payload detected, messages count:', body.messages.length);
       
       const model = body.model || 'gpt-4';
       const isO1Model = model.includes('o1') || model.includes('gpt-5');
+      
+      console.log('🟢 Chat API: Model:', model, ', Is O1 model:', isO1Model);
       
       // Build the OpenAI request from the payload
       const openaiRequest: any = {
@@ -32,18 +38,25 @@ export async function POST(request: NextRequest) {
       if (isO1Model) {
         openaiRequest.max_completion_tokens = maxTokensValue;
         // O1 models don't support temperature, top_p, or response_format
-        console.log('Chat API: Using O1 model settings');
+        console.log('🟢 Chat API: Using O1 model settings');
       } else {
         openaiRequest.max_tokens = maxTokensValue;
         openaiRequest.temperature = body.temperature !== undefined ? body.temperature : 0.7;
         if (body.top_p !== undefined) openaiRequest.top_p = body.top_p;
+        if (body.frequency_penalty !== undefined) openaiRequest.frequency_penalty = body.frequency_penalty;
+        if (body.presence_penalty !== undefined) openaiRequest.presence_penalty = body.presence_penalty;
         if (body.response_format) openaiRequest.response_format = body.response_format;
       }
 
       // Add optional parameters if present
       if (body.store !== undefined) openaiRequest.store = body.store;
 
-      console.log('Chat API: Making OpenAI request with model:', openaiRequest.model);
+      console.log('🟢 Chat API: Making OpenAI request with:', {
+        model: openaiRequest.model,
+        messageCount: openaiRequest.messages.length,
+        temperature: openaiRequest.temperature,
+        max_tokens: openaiRequest.max_tokens
+      });
 
       // Make actual API call to OpenAI
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -55,9 +68,11 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify(openaiRequest)
       });
 
+      console.log('🟢 Chat API: OpenAI response status:', openaiResponse.status, openaiResponse.statusText);
+
       if (!openaiResponse.ok) {
         const errorData = await openaiResponse.json().catch(() => ({}));
-        console.error('OpenAI API error:', {
+        console.error('❌ Chat API: OpenAI API error:', {
           status: openaiResponse.status,
           statusText: openaiResponse.statusText,
           errorData,
@@ -77,7 +92,8 @@ export async function POST(request: NextRequest) {
       const openaiData = await openaiResponse.json();
       const response = openaiData.choices?.[0]?.message?.content || 'No response received';
       
-      console.log('Chat API: OpenAI response received, length:', response.length);
+      console.log('✅ Chat API: OpenAI response received, length:', response.length);
+      console.log('✅ Chat API: Response preview:', response.substring(0, 100) + '...');
       
       return NextResponse.json({
         response: response,

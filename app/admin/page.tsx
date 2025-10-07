@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NavigationHeader from "../components/NavigationHeader";
-import StructureEditor from "./collections/[slug]/records/[id]/StructureEditor";
 
 type User = { id:string; email:string; name:string|null; role:string; company:string|null; createdAt:string; pageAccess?:Record<string, boolean> };
 type Field = { id:string; label:string; key:string; type:string; required:boolean; order:number };
@@ -93,7 +92,9 @@ export default function AdminPage() {
   const [structureRecords, setStructureRecords] = useState<RecordT[]>([]);
   const [structureRDraft, setStructureRDraft] = useState<Record<string, unknown>>({});
   const [structureFDraft, setStructureFDraft] = useState<{label:string; key:string; type:string; required:boolean; order:number}>({ label:"", key:"", type:"text", required:false, order:0 });
-  const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
+  const [selectedStructure, setSelectedStructure] = useState<RecordT | null>(null);
+  const [editingStructure, setEditingStructure] = useState(false);
+  const [editStructureData, setEditStructureData] = useState<Record<string, unknown>>({});
 
   // COMPANIES COLLECTION
   const [companyFields, setCompanyFields] = useState<Field[]>([]);
@@ -353,6 +354,16 @@ export default function AdminPage() {
   async function addRecord() { await apiJson(`/api/collections/${activeSlug}/records`, { method: "POST", body: JSON.stringify({ data: rDraft }) }); await loadCollection(activeSlug); }
 
   const fieldTypes = useMemo(()=>["text","number","image","json","date"], []);
+
+  // Sort pages so active pages appear first
+  const sortedToolsRecords = useMemo(() => {
+    return [...toolsRecords].sort((a, b) => {
+      const aActive = Boolean(a.data?.active);
+      const bActive = Boolean(b.data?.active);
+      if (aActive === bActive) return 0;
+      return aActive ? -1 : 1; // Active pages come first
+    });
+  }, [toolsRecords]);
 
   return (
     <>
@@ -639,7 +650,7 @@ export default function AdminPage() {
               </tr>
               
               {/* Regular pages */}
-              {toolsRecords.map(r => (
+              {sortedToolsRecords.map(r => (
                 <tr 
                   key={r.id} 
                   onClick={() => { setSelectedTool(r); setEditToolData(r.data || {}); setEditingTool(false); }}
@@ -667,7 +678,21 @@ export default function AdminPage() {
       <Section title="Structures">
         <div className="grid md:grid-cols-3 gap-2 mb-3">
           {structureFields.map(f => (
-            <TextInput key={f.id} placeholder={f.label} value={structureRDraft[f.key] ?? ""} onChange={e=>setStructureRDraft({ ...structureRDraft, [f.key]: e.target.value })} />
+            f.type === 'boolean' ? (
+              <div key={f.id} className="flex items-center gap-2 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(structureRDraft[f.key])}
+                  onChange={e=>setStructureRDraft({ ...structureRDraft, [f.key]: e.target.checked })}
+                  className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label className="text-sm text-gray-700">{f.label}</label>
+              </div>
+            ) : f.type === 'number' ? (
+              <TextInput key={f.id} type="number" placeholder={f.label} value={String(structureRDraft[f.key] ?? "")} onChange={e=>setStructureRDraft({ ...structureRDraft, [f.key]: e.target.value })} />
+            ) : (
+              <TextInput key={f.id} placeholder={f.label} value={String(structureRDraft[f.key] ?? "")} onChange={e=>setStructureRDraft({ ...structureRDraft, [f.key]: e.target.value })} />
+            )
           ))}
           <div className="md:col-span-3">
             <button className="nb-btn nb-btn-primary" onClick={async () => {
@@ -681,34 +706,28 @@ export default function AdminPage() {
             <thead>
               <tr className="border-b border-slate-200">
                 {structureFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                <th className="nb-th">Created</th>
-                <th className="nb-th">Actions</th>
               </tr>
             </thead>
             <tbody>
               {structureRecords.map(r=>(
-                <tr key={r.id} className="border-b border-slate-100 hover:bg-gray-50">
-                  {structureFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
-                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
-                  <td className="nb-td">
-                    <button 
-                      className="text-blue-600 underline hover:text-blue-800 mr-2" 
-                      onClick={() => setEditingStructureId(r.id)}
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      className="text-red-600 underline hover:text-red-800" 
-                      onClick={async () => {
-                        if (confirm("Are you sure you want to delete this structure?")) {
-                          await apiJson(`/api/collections/structures/records/${r.id}`, { method: "DELETE" });
-                          await loadStructures();
-                        }
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
+                <tr 
+                  key={r.id} 
+                  onClick={() => setSelectedStructure(r)}
+                  className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  {structureFields.map(f => (
+                    <td key={f.id} className="nb-td">
+                      {f.type === 'json' ? (
+                        <div className="max-w-md truncate" title={JSON.stringify(r.data?.[f.key] ?? "")}>
+                          {JSON.stringify(r.data?.[f.key] ?? "")}
+                        </div>
+                      ) : f.type === 'boolean' ? (
+                        r.data?.[f.key] ? '✅ Yes' : '❌ No'
+                      ) : (
+                        String(r.data?.[f.key] ?? "")
+                      )}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -744,7 +763,17 @@ export default function AdminPage() {
                   onClick={() => setSelectedSystemPrompt(r)}
                   className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  {systemPromptFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
+                  {systemPromptFields.map(f => (
+                    <td key={f.id} className="nb-td">
+                      {f.key === 'content' ? (
+                        <div className="max-w-md truncate" title={String(r.data?.[f.key] ?? "")}>
+                          {String(r.data?.[f.key] ?? "")}
+                        </div>
+                      ) : (
+                        String(r.data?.[f.key] ?? "")
+                      )}
+                    </td>
+                  ))}
                   <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
                   <td className="nb-td">
                     <button 
@@ -1150,55 +1179,143 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Structure Editor Modal */}
-      {editingStructureId && (
+      {/* Structure Details Modal */}
+      {selectedStructure && (
         <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-          zIndex: 60
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
         }}>
           <div style={{
-            width: '47.5vw',
-            height: '80vh',
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
-            position: 'relative',
-            overflow: 'hidden'
+            width: '100%', maxWidth: '896px', aspectRatio: '16/9',
+            backgroundColor: 'white', borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)'
           }}>
-            {/* Close Button */}
-            <button 
-              onClick={() => {
-                setEditingStructureId(null);
-                loadStructures(); // Refresh the structures list
-              }}
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                zIndex: 10,
-                backgroundColor: 'white',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                padding: '8px',
-                cursor: 'pointer'
-              }}
-            >
-              <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            
-            {/* Structure Editor */}
-            <StructureEditor recordId={editingStructureId} />
+            <div className="p-6 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-normal">{editingStructure ? 'Edit Structure' : 'Structure Details'}</h3>
+                <div className="flex items-center gap-2">
+                  {!editingStructure && (
+                    <button 
+                      onClick={() => {
+                        setEditStructureData(selectedStructure.data || {});
+                        setEditingStructure(true);
+                      }}
+                      className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedStructure(null)} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto">
+                {structureFields.map(field => (
+                  <div key={field.id}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                    {editingStructure ? (
+                      field.type === 'json' ? (
+                        <div>
+                          <textarea
+                            value={JSON.stringify(editStructureData[field.key] || {}, null, 2)}
+                            onChange={(e) => {
+                              try {
+                                const parsed = JSON.parse(e.target.value);
+                                setEditStructureData({...editStructureData, [field.key]: parsed});
+                              } catch {
+                                setEditStructureData({...editStructureData, [field.key]: e.target.value});
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                            rows={8}
+                            placeholder="Enter valid JSON..."
+                          />
+                          <div className="text-xs text-gray-500 mt-1">JSON format required</div>
+                        </div>
+                      ) : field.type === 'boolean' ? (
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(editStructureData[field.key])}
+                            onChange={(e) => setEditStructureData({...editStructureData, [field.key]: e.target.checked})}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{editStructureData[field.key] ? 'Yes' : 'No'}</span>
+                        </label>
+                      ) : field.type === 'number' ? (
+                        <input
+                          type="number"
+                          value={String(editStructureData[field.key] || "")}
+                          onChange={(e) => setEditStructureData({...editStructureData, [field.key]: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={String(editStructureData[field.key] || "")}
+                          onChange={(e) => setEditStructureData({...editStructureData, [field.key]: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      )
+                    ) : (
+                      <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                        {field.type === 'json' ? (
+                          <pre className="text-sm font-mono overflow-x-auto">{JSON.stringify(selectedStructure.data?.[field.key] || {}, null, 2)}</pre>
+                        ) : field.type === 'boolean' ? (
+                          selectedStructure.data?.[field.key] ? '✅ Yes' : '❌ No'
+                        ) : (
+                          String(selectedStructure.data?.[field.key] || "No data")
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {editingStructure && (
+                <div className="mt-6 flex gap-2">
+                  <button
+                    onClick={async () => {
+                      await apiJson(`/api/collections/structures/records/${selectedStructure.id}`, { 
+                        method: "PUT", 
+                        body: JSON.stringify({ data: editStructureData }) 
+                      });
+                      setEditingStructure(false);
+                      await loadStructures();
+                      setSelectedStructure({...selectedStructure, data: editStructureData});
+                    }}
+                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setEditingStructure(false)}
+                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              {!editingStructure && (
+                <div className="mt-6 flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (confirm('Delete this structure?')) {
+                        await apiJson(`/api/collections/structures/records/${selectedStructure.id}`, { method: 'DELETE' });
+                        setSelectedStructure(null);
+                        await loadStructures();
+                      }
+                    }}
+                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

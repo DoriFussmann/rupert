@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import NavigationHeader from "../../../../../components/NavigationHeader";
-import StructureEditor from "./StructureEditor";
 
 type Props = {
   params: { slug: string; id: string };
@@ -9,6 +9,7 @@ type Props = {
 
 export default function RecordEditPage({ params }: Props) {
   const { slug, id } = params;
+  const router = useRouter();
 
   useEffect(() => {
     // Create a style element to forcefully hide the layout header
@@ -34,17 +35,12 @@ export default function RecordEditPage({ params }: Props) {
     };
   }, []);
 
-  // Conditional render based on collection slug
-  if (slug === "structures") {
-    return (
-      <>
-        <NavigationHeader />
-        <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
-          <StructureEditor recordId={id} />
-        </div>
-      </>
-    );
-  }
+  // Redirect structures to admin page (now edited via modal)
+  useEffect(() => {
+    if (slug === "structures") {
+      router.push("/admin");
+    }
+  }, [slug, router]);
 
   // Generic editor fallback
   return (

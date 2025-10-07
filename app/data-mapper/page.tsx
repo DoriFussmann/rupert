@@ -1,41 +1,81 @@
 "use client";
-import { useEffect, useMemo, useState, useRef } from 'react';
-import NavigationHeader from '../components/NavigationHeader';
+import React, { useEffect, useRef, useState } from "react";
+import NavigationHeader from "../components/NavigationHeader";
 
 export default function DataMapperPage() {
   const [outputsExpanded, setOutputsExpanded] = useState(false);
+  const [inputsExpanded, setInputsExpanded] = useState(false);
   const [inputsCollapsed, setInputsCollapsed] = useState(false);
-  const [tasks, setTasks] = useState<Array<{ id: string; name: string; data?: any }>>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [structures, setStructures] = useState<Array<{ id: string; title: string; data?: any }>>([]);
-  const [selectedStructureId, setSelectedStructureId] = useState<string | null>(null);
-  const [companies, setCompanies] = useState<Array<{ id: string; name: string; data?: any }>>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-  const [provider, setProvider] = useState<"openai" | "gemini">("openai");
-  const MODEL_OPTIONS: Record<string, string[]> = {
-    openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
-    gemini: ["gemini-1.5-flash", "gemini-1.5-pro"],
-  };
-  const [model, setModel] = useState<string>("gpt-4o");
-  const [maxTokens, setMaxTokens] = useState<number>(3000);
-  const [temperature, setTemperature] = useState<number>(0.2);
-  const MAX_TOKEN_OPTIONS = [128, 256, 512, 1024, 2048, 3000, 4096, 8192];
-  const TEMP_OPTIONS = [0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0];
-  const [showPayload, setShowPayload] = useState(false);
-  const [showFullPayload, setShowFullPayload] = useState(false);
-  const [fullPayloadText, setFullPayloadText] = useState<string>("{\n  \"example\": \"value\"\n}");
-  const [isRunningFullPayload, setIsRunningFullPayload] = useState(false);
-  const [fullPayloadResult, setFullPayloadResult] = useState<any>(null);
-  const [fullPayloadError, setFullPayloadError] = useState<string | null>(null);
-  const [fullPayloadDebugInfo, setFullPayloadDebugInfo] = useState<any>(null);
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
-  const [parsedBusinessPlan, setParsedBusinessPlan] = useState<any>(null);
-  const [showUnallocated, setShowUnallocated] = useState(false);
-  const [showUnanswered, setShowUnanswered] = useState(false);
-  
-  // Preloader states
+  const [advisorImageUrl, setAdvisorImageUrl] = useState<string | null>(null);
+  const [advisorName, setAdvisorName] = useState<string>('');
+  const [howItWorksTexts, setHowItWorksTexts] = useState<string[]>([]);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [howItWorksStep, setHowItWorksStep] = useState(0);
+  const [typedText, setTypedText] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulateResult, setSimulateResult] = useState<null | { ok: boolean; elapsedMs: number; startedAt: number; finishedAt: number }>(null);
+  const [ribbonHidden, setRibbonHidden] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+  const [visibleActionCount, setVisibleActionCount] = useState(0);
+  const actionsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const loadingMsgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Chat functionality
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, timestamp: Date, isUser: boolean}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isTypingResponse, setIsTypingResponse] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
+  const [isInputsPanelBlinking, setIsInputsPanelBlinking] = useState(false);
+  const [isOutputsPanelBlinking, setIsOutputsPanelBlinking] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  // Seed greeting once advisorName is available and no messages yet
+  useEffect(() => {
+    if (chatMessages.length === 0 && advisorName && advisorName.toLowerCase() !== 'advisor') {
+      setChatMessages([{ id: 'greet', text: `Hello, I am ${advisorName}.`, timestamp: new Date(), isUser: false }]);
+    }
+  }, [advisorName]);
+  // Controls like Model Builder
+  const [isControlsOpen, setIsControlsOpen] = useState(false);
+  const [llm, setLlm] = useState<string>('OpenAI');
+  const [model, setModel] = useState<string>('gpt-4o-mini');
+  const [responseFormat, setResponseFormat] = useState<'json_object' | 'text' | 'xml'>('text');
+  const [temperature, setTemperature] = useState<number>(0.2);
+  const [topP, setTopP] = useState<number>(1.0);
+  const [maxOutputTokens, setMaxOutputTokens] = useState<number>(2500);
+  const [reasoningEffort, setReasoningEffort] = useState<'low' | 'medium' | 'high'>('medium');
+  const [verbosity, setVerbosity] = useState<'low' | 'medium' | 'high'>('medium');
+  const [frequencyPenalty, setFrequencyPenalty] = useState<number>(0);
+  const [presencePenalty, setPresencePenalty] = useState<number>(0);
+  const [storeLogs, setStoreLogs] = useState<boolean>(true);
+  const [completionThreshold, setCompletionThreshold] = useState<number>(80);
+  const [structures, setStructures] = useState<Array<{ id: string; data: { name?: string; schema?: unknown } }>>([]);
+  const [selectedStructureId, setSelectedStructureId] = useState<string>("");
+  const [isSystemPromptPreviewOpen, setIsSystemPromptPreviewOpen] = useState(false);
+  const [isPreflightOpen, setIsPreflightOpen] = useState(false);
+  const [preflightPayload, setPreflightPayload] = useState<any>(null);
+  const [callResponse, setCallResponse] = useState<any>(null);
+  const [isCallingApi, setIsCallingApi] = useState(false);
+
+  // Model options based on LLM
+  const modelsByLlm: Record<string, string[]> = {
+    'OpenAI': ['gpt-5', 'o1', 'o1-preview', 'o1-mini', 'o3-mini', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'],
+    'Anthropic': ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+    'Google': ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'],
+    'Meta': ['llama-3.3-70b-instruct', 'llama-3.1-405b-instruct', 'llama-3.1-70b-instruct', 'llama-3.1-8b-instruct'],
+    'Mistral': ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'mistral-tiny']
+  };
+
+  // Update model when LLM changes
+  const handleLlmChange = (newLlm: string) => {
+    setLlm(newLlm);
+    const models = modelsByLlm[newLlm];
+    if (models && models.length > 0) {
+      setModel(models[0]); // Set to first model of the new LLM
+    }
+  };
 
   const loadingMessages = [
     "Analyzing semantic intent…",
@@ -44,25 +84,6 @@ export default function DataMapperPage() {
     "Synthesizing optimal strategy…",
     "Validating constraints and edge cases…",
   ];
-
-  // How it Works states
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [ribbonHidden, setRibbonHidden] = useState(false);
-  const [showActions, setShowActions] = useState(false);
-  const [visibleActionCount, setVisibleActionCount] = useState(0);
-  const actionsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  function handleShowHowItWorks() {
-    setShowHowItWorks(true);
-  }
-
-  function triggerSuccessSequence() {
-    // 1) Fade out the How it Works ribbon, then 2) reveal actions
-    setRibbonHidden(true);
-    setTimeout(() => {
-      setShowActions(true);
-    }, 250);
-  }
 
   // Dropdown options for each action
   const dropdownOptions = {
@@ -80,26 +101,14 @@ export default function DataMapperPage() {
       { label: 'To PDF', action: () => console.log('Save to PDF') },
     ],
     copy: [
-      { label: 'To Clipboard', action: () => {
-        const plainText = generatePlainTextPlan(parsedBusinessPlan);
-        navigator.clipboard?.writeText(plainText);
-      }},
+      { label: 'To Clipboard', action: () => console.log('Copy to Clipboard') },
       { label: 'As Rich Text', action: () => console.log('Copy as Rich Text') },
-      { label: 'As Plain Text', action: () => {
-        const plainText = generatePlainTextPlan(parsedBusinessPlan);
-        navigator.clipboard?.writeText(plainText);
-      }},
+      { label: 'As Plain Text', action: () => console.log('Copy as Plain Text') },
     ],
     code: [
-      { label: 'Copy Raw Response', action: () => {
-        navigator.clipboard?.writeText(JSON.stringify(fullPayloadResult, null, 2));
-      }},
-      { label: 'Copy JSON', action: () => {
-        navigator.clipboard?.writeText(JSON.stringify(fullPayloadResult, null, 2));
-      }},
-      { label: 'Copy Content Only', action: () => {
-        navigator.clipboard?.writeText(fullPayloadResult?.result?.content || '');
-      }},
+      { label: 'Copy Raw Code', action: () => console.log('Copy Raw Code') },
+      { label: 'Copy JSON', action: () => console.log('Copy JSON') },
+      { label: 'Copy XML', action: () => console.log('Copy XML') },
     ],
     share: [
       { label: 'To Team', action: () => console.log('Send to Team') },
@@ -116,7 +125,16 @@ export default function DataMapperPage() {
     ],
   };
 
-  const actionItems: Array<{ key: string; title: string; svg: JSX.Element }> = [
+  const actionItems: Array<{ key: string; title: string; svg: React.JSX.Element }> = [
+    {
+      key: 'trash',
+      title: 'Clear Outputs',
+      svg: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h2a2 2 0 012 2v2" />
+        </svg>
+      ),
+    },
     {
       key: 'add',
       title: 'Add to Projects',
@@ -167,38 +185,11 @@ export default function DataMapperPage() {
       title: 'Download',
       svg: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
         </svg>
       ),
     },
   ];
-
-  const payload = useMemo(() => {
-    const task = tasks.find(t => t.id === selectedTaskId);
-    const structure = structures.find(s => s.id === selectedStructureId);
-    const company = companies.find(c => c.id === selectedCompanyId);
-    return {
-      task: task ? { 
-        id: task.id, 
-        name: task.name,
-        taskPrompt: task.data?.taskPrompt || task.data?.prompt || ''
-      } : null,
-      structure: structure ? { 
-        id: structure.id, 
-        title: structure.title,
-        compiled: structure.data?.compiled || null
-      } : null,
-      company: company ? { 
-        id: company.id, 
-        name: company.name,
-        rawData: company.data?.rawData || company.data?.data || ''
-      } : null,
-      llm: provider,
-      model,
-      maxTokens,
-      temperature,
-    };
-  }, [tasks, selectedTaskId, structures, selectedStructureId, companies, selectedCompanyId, provider, model, maxTokens, temperature]);
   useEffect(() => {
     // Create a style element to forcefully hide the layout header
     const styleElement = document.createElement('style');
@@ -223,101 +214,70 @@ export default function DataMapperPage() {
     };
   }, []);
 
+  // Load advisor image, How It Works, and System Prompts
   useEffect(() => {
-    async function loadTasks() {
+    let cancelled = false;
+    (async () => {
       try {
-        const res = await fetch('/api/collections/tasks/records', { headers: { 'Content-Type': 'application/json' } });
-        if (!res.ok) return;
-        const records: Array<{ id: string; data?: Record<string, unknown> }> = await res.json();
-        const mapped = records.map(r => ({ 
-          id: r.id, 
-          name: String((r.data as any)?.name || 'Unnamed Task'),
-          data: r.data
-        }));
-        setTasks(mapped);
-      } catch {}
-    }
-    async function loadStructures() {
-      try {
-        const res = await fetch('/api/collections/structures/records', { headers: { 'Content-Type': 'application/json' } });
-        if (!res.ok) return;
-        const records: Array<{ id: string; data?: Record<string, unknown> }> = await res.json();
-        const mapped = records.map(r => ({ 
-          id: r.id, 
-          title: String((r.data as any)?.title || 'Untitled Structure'),
-          data: r.data
-        }));
-        setStructures(mapped);
-      } catch {}
-    }
-    async function loadCompanies() {
-      try {
-        const res = await fetch('/api/collections/companies/records', { headers: { 'Content-Type': 'application/json' } });
-        if (!res.ok) return;
-        const records: Array<{ id: string; data?: Record<string, unknown> }> = await res.json();
-        const mapped = records.map(r => ({ 
-          id: r.id, 
-          name: String((r.data as any)?.name || 'Unnamed Company'),
-          data: r.data
-        }));
-        setCompanies(mapped);
-      } catch {}
-    }
-    loadTasks();
-    loadStructures();
-    loadCompanies();
+        const toolsRes = await fetch('/api/collections/pages/records', { headers: { 'Content-Type': 'application/json' } });
+        if (!toolsRes.ok) return;
+        const records: Array<{ id: string; data?: Record<string, unknown> }> = await toolsRes.json();
+        console.log('Pages records:', records);
+        const page = records.find(r => String((r.data as any)?.name || '').toLowerCase() === 'data mapper');
+        console.log('Data Mapper page record:', page);
+        const advisorId = page?.data ? (page.data as any).mainAdvisorId : null;
+        console.log('Advisor ID:', advisorId);
+        const hiw: string[] = page?.data ? [
+          String((page.data as any).howItWorks1 || '').trim(),
+          String((page.data as any).howItWorks2 || '').trim(),
+          String((page.data as any).howItWorks3 || '').trim(),
+          String((page.data as any).howItWorks4 || '').trim(),
+        ].filter(Boolean) : [];
+        if (!cancelled) setHowItWorksTexts(hiw);
+        if (!advisorId) {
+          console.log('No advisor ID found for Data Mapper page');
+          return;
+        }
+        const advRes = await fetch(`/api/collections/advisors/records/${advisorId}`, { headers: { 'Content-Type': 'application/json' } });
+        if (!advRes.ok) return;
+        const advisor = await advRes.json();
+        const raw = advisor?.data?.image ? String(advisor.data.image) : '';
+        const img = raw
+          ? (/^https?:\/\//i.test(raw) || raw.startsWith('/') ? raw : `/uploads/${raw}`)
+          : '';
+        const name = advisor?.data?.name ? String(advisor.data.name) : 'Advisor';
+        if (!cancelled) {
+          setAdvisorImageUrl(img || null);
+          setAdvisorName(name);
+        }
+        // Load system prompts
+        const promptsRes = await fetch('/api/collections/system-prompts/records', { headers: { 'Content-Type': 'application/json' } });
+        if (promptsRes.ok) {
+          const records: Array<{ id: string; data?: Record<string, unknown> }> = await promptsRes.json();
+          if (!cancelled) {
+            setSystemPrompts(records as any);
+            const def = (records as any[]).find(p => (p?.data as any)?.name === 'Data Mapper');
+            if (def) {
+              setSelectedSystemPromptId(def.id);
+              const content = (def.data as any)?.content ? String((def.data as any).content) : '';
+              setSystemPrompt(content);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading advisor image:', error);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  // Set default selections if present in loaded data
+  // Cleanup any running typing interval on unmount
   useEffect(() => {
-    if (!selectedTaskId && tasks.length > 0) {
-      const t = tasks.find(x => x.name?.toLowerCase?.().includes("map the data"));
-      if (t) setSelectedTaskId(t.id);
-    }
-  }, [tasks]);
-  useEffect(() => {
-    if (!selectedStructureId && structures.length > 0) {
-      const s = structures.find(x => x.title?.toLowerCase?.().includes("business plan"));
-      if (s) setSelectedStructureId(s.id);
-    }
-  }, [structures]);
-  useEffect(() => {
-    if (!selectedCompanyId && companies.length > 0) {
-      const c = companies.find(x => x.name?.toLowerCase?.().includes("lightssaas"));
-      if (c) setSelectedCompanyId(c.id);
-    }
-  }, [companies]);
+    return () => { if (typingIntervalRef.current) clearInterval(typingIntervalRef.current); };
+  }, []);
 
-  // Keep model in sync with provider selection
   useEffect(() => {
-    const defaults = MODEL_OPTIONS[provider] || [];
-    if (!defaults.includes(model)) setModel(defaults[0] || "");
-  }, [provider]);
-
-  // Handle loading message cycling
-  useEffect(() => {
-    if (isRunningFullPayload) {
-      setLoadingMessageIndex(0);
-      loadingMsgIntervalRef.current = setInterval(() => {
-        setLoadingMessageIndex(prev => (prev + 1) % loadingMessages.length);
-      }, 1500);
-    } else {
-      if (loadingMsgIntervalRef.current) {
-        clearInterval(loadingMsgIntervalRef.current);
-        loadingMsgIntervalRef.current = null;
-      }
-    }
-
-    return () => {
-      if (loadingMsgIntervalRef.current) {
-        clearInterval(loadingMsgIntervalRef.current);
-        loadingMsgIntervalRef.current = null;
-      }
-    };
-  }, [isRunningFullPayload, loadingMessages.length]);
-
   // Staggered show of action icons
-  useEffect(() => {
     if (showActions) {
       setVisibleActionCount(0);
       if (actionsIntervalRef.current) clearInterval(actionsIntervalRef.current);
@@ -332,213 +292,479 @@ export default function DataMapperPage() {
       }, 500);
     }
     return () => { if (actionsIntervalRef.current) clearInterval(actionsIntervalRef.current); };
-  }, [showActions, actionItems.length]);
+  }, [showActions]);
 
-  // Parse AI response into structured format
-  const parseBusinessPlanResponse = (content: string) => {
+  // Rotate loading messages every 2.5s while simulating
+  useEffect(() => {
+    if (isSimulating) {
+      setLoadingMessageIndex(0);
+      if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current);
+      loadingMsgIntervalRef.current = setInterval(() => {
+        setLoadingMessageIndex((i) => (i + 1) % loadingMessages.length);
+      }, 2500);
+    } else {
+      if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current);
+    }
+    return () => { if (loadingMsgIntervalRef.current) clearInterval(loadingMsgIntervalRef.current); };
+  }, [isSimulating]);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  // Handle chat message sending
+  async function handleSendMessage() {
+    if (!chatInput.trim()) return;
+    
+    const userMessage = {
+      id: Date.now().toString(),
+      text: chatInput.trim(),
+      timestamp: new Date(),
+      isUser: true
+    };
+    
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsTypingResponse(true);
+    
     try {
-      const sections = {
-        businessPlan: [],
-        unallocated: [],
-        unanswered: [],
-        parseError: null
+      // Build payload with the new message
+      const thresholdDecimal = completionThreshold / 100;
+      const selectedStructure = structures.find(s => s.id === selectedStructureId);
+      const schema = selectedStructure?.data?.schema || {};
+      
+      let processedSystemPrompt = systemPrompt;
+      processedSystemPrompt = processedSystemPrompt.replace(/\{\{THRESHOLD\}\}/g, String(thresholdDecimal));
+      processedSystemPrompt = processedSystemPrompt.replace(/\{\{BUSINESS_PLAN_STRUCTURE\}\}/g, JSON.stringify(schema, null, 2));
+      
+      const payload = {
+        model: model,
+        response_format: { type: responseFormat },
+        temperature: temperature,
+        max_tokens: maxOutputTokens,
+        top_p: topP,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
+        messages: [
+          { role: 'system', content: processedSystemPrompt },
+          { role: 'user', content: userMessage.text }
+        ]
       };
+      
+      console.log('=== DEBUG: Sending Payload ===');
+      console.log(JSON.stringify(payload, null, 2));
+      console.log('============================');
+      
+      // Call API
+      const response = await fetch('/api/openai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      const lines = content.split('\n');
-      let currentSection = '';
-      let currentTopic = null;
-      let currentSubtopic = null;
+      if (!response.ok) {
+        // Try to get detailed error from response body
+        let errorDetails = '';
+        try {
+          const errorBody = await response.json();
+          errorDetails = JSON.stringify(errorBody, null, 2);
+          console.error('API Error Details:', errorBody);
+        } catch (e) {
+          errorDetails = await response.text();
+          console.error('API Error Text:', errorDetails);
+        }
+        throw new Error(`API call failed (${response.status} ${response.statusText}): ${errorDetails}`);
+      }
 
-      for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+      const result = await response.json();
+      
+      // Parse the response
+      let responseText = '';
+      if (result.output_text) {
+        responseText = result.output_text;
+      } else if (result.choices?.[0]?.message?.content) {
+        responseText = result.choices[0].message.content;
+      }
+      
+      const advisorMessage = {
+        id: (Date.now() + 1).toString(),
+        text: responseText || 'No response received',
+        timestamp: new Date(),
+        isUser: false
+      };
+      
+      setChatMessages(prev => [...prev, advisorMessage]);
+      
+    } catch (error) {
+      console.error('=== DEBUG: Error Details ===');
+      console.error(error);
+      console.error('============================');
+      
+      const errorText = String(error);
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        text: `🔴 ERROR:\n\n${errorText}\n\n💡 Check browser console for full payload details.`,
+        timestamp: new Date(),
+        isUser: false
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTypingResponse(false);
+    }
+  }
 
-        // Detect sections (tolerant matching)
-        if (line.includes('=== BUSINESS PLAN ===')) {
-          currentSection = 'businessPlan';
-          continue;
-        }
-        if (line.includes('=== UNALLOCATED PROFESSIONALIZED DATA POINTS ===') || 
-            line.includes('=== UNALLOCATED ===')) {
-          currentSection = 'unallocated';
-          continue;
-        }
-        if (line.includes('=== UNANSWERED QUESTIONS ===') || 
-            line.includes('=== UNANSWERED ===')) {
-          currentSection = 'unanswered';
-          continue;
-        }
+  function handleChatKeyPress(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }
 
-        if (currentSection === 'businessPlan') {
-          // Topic header: # Topic: Business Overview
-          if (line.startsWith('# Topic:')) {
-            currentTopic = {
-              title: line.replace('# Topic:', '').trim(),
-              subtopics: []
-            };
-            sections.businessPlan.push(currentTopic);
-          }
-          // Subtopic header: ## Subtopic: Company Description
-          else if (line.startsWith('## Subtopic:')) {
-            currentSubtopic = {
-              title: line.replace('## Subtopic:', '').trim(),
-              dataPoints: []
-            };
-            if (currentTopic) {
-              currentTopic.subtopics.push(currentSubtopic);
-            }
-          }
-          // Data point: - ([questionId]) Data point OR - Data point
-          else if (line.startsWith('- ')) {
-            const dataPointText = line.substring(2).trim();
-            let questionId = '';
-            let text = dataPointText;
-            
-            // Check for questionId pattern: ([questionId])
-            const questionIdMatch = dataPointText.match(/^\(\[([^\]]+)\]\)\s*(.*)$/);
-            if (questionIdMatch) {
-              questionId = questionIdMatch[1];
-              text = questionIdMatch[2];
-            }
-            
-            if (currentSubtopic) {
-              currentSubtopic.dataPoints.push({
-                questionId,
-                text,
-                raw: dataPointText
-              });
-            }
+  // Debug: Copy all chat details for debugging
+  function handleCopyChatDebug() {
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      chatMessages: chatMessages,
+      selectedSystemPrompt: systemPrompts.find(p => p.id === selectedSystemPromptId)?.data?.name || 'None',
+      selectedStructure: structures.find(s => s.id === selectedStructureId)?.data?.name || 'None',
+      threshold: completionThreshold,
+      controls: {
+        model,
+        responseFormat,
+        temperature,
+        maxOutputTokens,
+        topP,
+        reasoningEffort,
+        verbosity,
+        frequencyPenalty,
+        presencePenalty,
+        storeLogs
+      },
+      preflightPayload: preflightPayload,
+      callResponse: callResponse,
+      isCallingApi,
+      isTypingResponse
+    };
+
+    const debugText = JSON.stringify(debugInfo, null, 2);
+    navigator.clipboard.writeText(debugText).then(() => {
+      alert('Chat debug info copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy. See console for details.');
+    });
+  }
+
+  function startTyping(text: string) {
+    if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+    setIsTyping(true);
+    setTypedText("");
+    let index = 0;
+    typingIntervalRef.current = setInterval(() => {
+      index += 1;
+      setTypedText(text.slice(0, index));
+      if (index >= text.length) {
+        if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+        setIsTyping(false);
+      }
+    }, 15); // relatively quickly
+  }
+
+  function triggerInputsPanelBlink() {
+    setIsInputsPanelBlinking(true);
+    // Stop blinking after 2 blinks (1 second total: 0.5s per blink)
+    setTimeout(() => {
+      setIsInputsPanelBlinking(false);
+    }, 1000);
+  }
+
+  function triggerOutputsPanelBlink() {
+    // Add delay before starting the blink
+    setTimeout(() => {
+      setIsOutputsPanelBlinking(true);
+      // Stop blinking after 2 blinks (1.6 seconds total: 0.8s per blink, slower)
+      setTimeout(() => {
+        setIsOutputsPanelBlinking(false);
+      }, 1600);
+    }, 800); // 800ms delay before starting
+  }
+
+  function handleShowHowItWorks() {
+    if (!howItWorksTexts.length) return;
+    setShowHowItWorks(true);
+    setHowItWorksStep(0);
+    startTyping(howItWorksTexts[0]);
+  }
+
+  function handleNextHowItWorks() {
+    if (howItWorksStep + 1 < howItWorksTexts.length) {
+      const next = howItWorksStep + 1;
+      setHowItWorksStep(next);
+      
+      // Trigger blink effect when moving to second step (step 1, 0-indexed)
+      if (next === 1) {
+        triggerInputsPanelBlink();
+      }
+      
+      // Trigger blink effect when moving to third step (step 2, 0-indexed)
+      if (next === 2) {
+        triggerOutputsPanelBlink();
+      }
+      
+      startTyping(howItWorksTexts[next]);
+          } else {
+      // no more steps; keep showing last text
+    }
+  }
+
+  function handleCloseHowItWorks() {
+    if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+    setIsTyping(false);
+    setShowHowItWorks(false);
+    setTypedText("");
+    setHowItWorksStep(0);
+  }
+
+  function triggerSuccessSequence() {
+    // 1) Fade out the How it Works ribbon, then 2) reveal actions
+    setRibbonHidden(true);
+    setTimeout(() => {
+      setShowActions(true);
+    }, 250);
+  }
+
+  function handleClearOutputs() {
+    // Gradually hide icons
+    if (actionsIntervalRef.current) {
+      clearInterval(actionsIntervalRef.current);
+    }
+    const hideInterval = setInterval(() => {
+      setVisibleActionCount((c) => {
+        if (c <= 0) {
+          clearInterval(hideInterval);
+          setShowActions(false);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 60);
+    // Clear outputs area
+    setSimulateResult(null);
+    setShowHowItWorks(false);
+    setTypedText("");
+  }
+
+  // System Prompt Selector
+  const [systemPrompts, setSystemPrompts] = useState<Array<{ id: string; data: { name?: string; content?: string } }>>([]);
+  const [selectedSystemPromptId, setSelectedSystemPromptId] = useState<string>("");
+  const [systemPrompt, setSystemPrompt] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const promptsRes = await fetch('/api/collections/system-prompts/records', { headers: { 'Content-Type': 'application/json' } });
+        if (!promptsRes.ok) return;
+        const records: Array<{ id: string; data?: { name?: string; content?: string } }> = await promptsRes.json();
+        if (!cancelled) {
+          setSystemPrompts(records as any);
+          const def = records.find(p => p.data?.name === 'Data Mapper');
+          if (def) {
+            setSelectedSystemPromptId(def.id);
+            setSystemPrompt(String(def.data?.content || ''));
+          } else if (records.length > 0) {
+            setSelectedSystemPromptId(records[0].id);
+            setSystemPrompt(String(records[0].data?.content || ''));
           }
         }
-        else if (currentSection === 'unallocated') {
-          if (line.startsWith('- ')) {
-            sections.unallocated.push(line.substring(2).trim());
+    } catch (error) {
+        console.error('Error loading system prompts:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load structures
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const structuresRes = await fetch('/api/collections/structures/records', { headers: { 'Content-Type': 'application/json' } });
+        if (!structuresRes.ok) return;
+        const records: Array<{ id: string; data?: { name?: string } }> = await structuresRes.json();
+        if (!cancelled) {
+          setStructures(records as any);
+          if (records.length > 0) {
+            setSelectedStructureId(records[0].id);
           }
         }
-        else if (currentSection === 'unanswered') {
-          // Topic header: # Topic: Business Overview
-          if (line.startsWith('# Topic:')) {
-            currentTopic = {
-              title: line.replace('# Topic:', '').trim(),
-              subtopics: []
-            };
-            sections.unanswered.push(currentTopic);
-          }
-          // Subtopic header: ## Subtopic: Company Description
-          else if (line.startsWith('## Subtopic:')) {
-            currentSubtopic = {
-              title: line.replace('## Subtopic:', '').trim(),
-              questions: []
-            };
-            if (currentTopic) {
-              currentTopic.subtopics.push(currentSubtopic);
-            }
-          }
-          // Question: - 1.1.1 What is the question?
-          else if (line.startsWith('- ')) {
-            const question = line.substring(2).trim();
-            if (currentSubtopic) {
-              currentSubtopic.questions.push(question);
-            }
-          }
+    } catch (error) {
+        console.error('Error loading structures:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  function handleSystemPromptChange(promptId: string) {
+    setSelectedSystemPromptId(promptId);
+    const found = (systemPrompts as any[]).find(p => p.id === promptId);
+    const content = found?.data?.content ? String(found.data.content) : '';
+    setSystemPrompt(content);
+  }
+
+  function handlePreflight() {
+    // 1. Convert threshold percentage to decimal
+    const thresholdDecimal = completionThreshold / 100;
+
+    // 2. Get schema from selected structure
+    const selectedStructure = structures.find(s => s.id === selectedStructureId);
+    const schema = selectedStructure?.data?.schema || {};
+
+    // 3. Replace placeholders in system prompt
+    let processedSystemPrompt = systemPrompt;
+    processedSystemPrompt = processedSystemPrompt.replace(/\{\{THRESHOLD\}\}/g, String(thresholdDecimal));
+    processedSystemPrompt = processedSystemPrompt.replace(/\{\{BUSINESS_PLAN_STRUCTURE\}\}/g, JSON.stringify(schema, null, 2));
+
+    // 4. Get user message from chat (last user message)
+    const lastUserMessage = chatMessages.filter(m => m.isUser).slice(-1)[0];
+    const userContent = lastUserMessage?.text || '';
+
+    // 5. Build payload
+    const payload = {
+      model: model,
+      response_format: { type: responseFormat },
+      temperature: temperature,
+      max_tokens: maxOutputTokens,
+      top_p: topP,
+      frequency_penalty: frequencyPenalty,
+      presence_penalty: presencePenalty,
+      messages: [
+        { role: 'system', content: processedSystemPrompt },
+        { role: 'user', content: userContent }
+      ]
+    };
+
+    setPreflightPayload(payload);
+    setIsPreflightOpen(true);
+  }
+
+  async function handleCall() {
+    if (!preflightPayload) {
+      console.error('No preflight payload available');
+      return;
+    }
+
+    try {
+      setIsCallingApi(true);
+      setCallResponse(null);
+
+      console.log('=== DEBUG: Sending Preflight Payload ===');
+      console.log(JSON.stringify(preflightPayload, null, 2));
+      console.log('============================');
+
+      // Send to OpenAI API
+      const response = await fetch('/api/openai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preflightPayload)
+      });
+
+      if (!response.ok) {
+        // Try to get detailed error from response body
+        let errorDetails = '';
+        try {
+          const errorBody = await response.json();
+          errorDetails = JSON.stringify(errorBody, null, 2);
+          console.error('API Error Details:', errorBody);
+        } catch (e) {
+          errorDetails = await response.text();
+          console.error('API Error Text:', errorDetails);
+        }
+        throw new Error(`API call failed (${response.status} ${response.statusText}): ${errorDetails}`);
+      }
+
+      const result = await response.json();
+      
+      // Parse the output_text if it's JSON
+      let parsedOutput = result;
+      let responseText = '';
+      
+      if (result.output_text) {
+        try {
+          parsedOutput = JSON.parse(result.output_text);
+          responseText = result.output_text;
+        } catch (e) {
+          parsedOutput = result.output_text;
+          responseText = result.output_text;
+        }
+      } else if (result.choices?.[0]?.message?.content) {
+        try {
+          parsedOutput = JSON.parse(result.choices[0].message.content);
+          responseText = result.choices[0].message.content;
+        } catch (e) {
+          parsedOutput = result.choices[0].message.content;
+          responseText = result.choices[0].message.content;
         }
       }
 
-      return sections;
-    } catch (error) {
-      console.error('Error parsing business plan response:', error);
-      return {
-        businessPlan: [],
-        unallocated: [],
-        unanswered: [],
-        parseError: error.message
+      setCallResponse(parsedOutput);
+      
+      // Add response to chat as advisor message
+      const advisorMessage = {
+        id: Date.now().toString(),
+        text: typeof responseText === 'string' ? responseText : JSON.stringify(parsedOutput, null, 2),
+        timestamp: new Date(),
+        isUser: false
       };
+      setChatMessages(prev => [...prev, advisorMessage]);
+      
+    } catch (error) {
+      console.error('=== DEBUG: Call Error Details ===');
+      console.error(error);
+      console.error('============================');
+      
+      const errorResponse = { error: String(error) };
+      setCallResponse(errorResponse);
+      
+      // Add error to chat
+      const errorText = String(error);
+      const errorMessage = {
+        id: Date.now().toString(),
+        text: `🔴 ERROR:\n\n${errorText}\n\n💡 Check browser console for full payload details.`,
+        timestamp: new Date(),
+        isUser: false
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsCallingApi(false);
     }
-  };
-
-  // Generate plain text version for copying
-  const generatePlainTextPlan = (parsed: any) => {
-    if (!parsed) return '';
-    
-    let output = '';
-    
-    // Business Plan Section
-    if (parsed.businessPlan.length > 0) {
-      output += '=== BUSINESS PLAN ===\n\n';
-      parsed.businessPlan.forEach((topic: any) => {
-        output += `# Topic: ${topic.title}\n`;
-        topic.subtopics.forEach((subtopic: any) => {
-          output += `## Subtopic: ${subtopic.title}\n`;
-          if (subtopic.dataPoints.length > 0) {
-            subtopic.dataPoints.forEach((dp: any) => {
-              if (dp.questionId) {
-                output += `- ([${dp.questionId}]) ${dp.text}\n`;
-              } else {
-                output += `- ${dp.text}\n`;
-              }
-            });
-          } else {
-            output += '- No mapped data points.\n';
-          }
-          output += '\n';
-        });
-      });
-    }
-    
-    // Unallocated Section
-    if (parsed.unallocated.length > 0) {
-      output += '=== UNALLOCATED PROFESSIONALIZED DATA POINTS ===\n';
-      parsed.unallocated.forEach((item: string) => {
-        output += `- ${item}\n`;
-      });
-      output += '\n';
-    }
-    
-    // Unanswered Section
-    if (parsed.unanswered.length > 0) {
-      output += '=== UNANSWERED QUESTIONS ===\n';
-      parsed.unanswered.forEach((topic: any) => {
-        output += `# Topic: ${topic.title}\n`;
-        topic.subtopics.forEach((subtopic: any) => {
-          output += `## Subtopic: ${subtopic.title}\n`;
-          subtopic.questions.forEach((question: string) => {
-            output += `- ${question}\n`;
-          });
-          output += '\n';
-        });
-      });
-    }
-    
-    return output.trim();
-  };
-
-  // Parse response when fullPayloadResult changes
-  useEffect(() => {
-    if (fullPayloadResult?.result?.content) {
-      const parsed = parseBusinessPlanResponse(fullPayloadResult.result.content);
-      setParsedBusinessPlan(parsed);
-    } else {
-      setParsedBusinessPlan(null);
-    }
-  }, [fullPayloadResult]);
+  }
 
   return (
     <>
       <NavigationHeader />
       <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
-        <div className={`flex ${outputsExpanded ? "gap-0" : "gap-4"}`}>
+        <div className={`flex ${outputsExpanded || inputsExpanded ? "gap-0" : "gap-4"}`}>
           {/* Left Panel - 25% width, aligned with page name ribbon */}
           <div
             className="relative"
-            style={{ width: outputsExpanded ? "0%" : "25%", transition: "width 200ms ease", pointerEvents: outputsExpanded ? "none" : "auto" }}
+            style={{ 
+              width: outputsExpanded ? "0%" : (inputsExpanded ? "100%" : "25%"), 
+              transition: "width 200ms ease", 
+              pointerEvents: outputsExpanded ? "none" : "auto" 
+            }}
           >
-            <div className={`${outputsExpanded ? "opacity-0" : "opacity-100"} bg-white rounded-md border border-gray-200 transition-opacity duration-200`}>
+            <div className={`bg-white rounded-md border border-gray-200 ${outputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200 ${isInputsPanelBlinking ? "nb-anim-inputs-panel-blink" : ""}`}>
+              <div className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center justify-between hover:bg-gray-200 transition-colors min-h-[52px]">
               <button
                 type="button"
                 aria-label="Toggle Inputs visibility"
                 aria-expanded={!inputsCollapsed}
                 onClick={() => setInputsCollapsed((v) => !v)}
-                className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-left hover:bg-gray-200 transition-colors min-h-[52px]"
+                  className="flex items-center gap-2 text-left"
               >
                 <svg
                   className={`w-4 h-4 transform transition-transform ${inputsCollapsed ? "" : "rotate-90"}`}
@@ -550,289 +776,308 @@ export default function DataMapperPage() {
                 </svg>
                 <h2 className="text-sm font-medium text-gray-900">Inputs Panel</h2>
               </button>
-              {!inputsCollapsed && (
-              <div className="p-4">
-                {/* Dropdown Menu - identical to header Menu button */}
-                <div className="relative group">
-                  <div className="mb-1 text-xs font-medium text-gray-600">Task</div>
-                  <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                <button
+                  type="button"
+                  aria-label="Toggle Inputs width"
+                  aria-expanded={inputsExpanded}
+                  onClick={() => {
+                    setInputsExpanded((v) => !v);
+                    if (!inputsExpanded) setOutputsExpanded(false); // Collapse outputs when expanding inputs
+                  }}
+                  className="flex items-center"
+                >
+                  <svg
+                    className={`w-4 h-4 transform transition-transform ${inputsExpanded ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+              </div>
+              <div
+                className="overflow-hidden"
+                style={{
+                  maxHeight: inputsCollapsed ? 0 : '2000px',
+                  opacity: inputsCollapsed ? 0 : 1,
+                  transition: 'max-height 300ms ease-in-out, opacity 250ms ease-in-out'
+                }}
+              >
+                <div className={`p-4 ${inputsExpanded ? 'flex gap-4' : ''}`}>
+                {/* Left column - advisor image and controls (stays fixed width when expanded) */}
+                <div className={inputsExpanded ? 'flex-shrink-0' : ''} style={{ maxWidth: '320px', width: '100%' }}>
+                {/* Image placeholder at top */}
+                <div className="w-full h-64 bg-gray-100 border border-gray-200 rounded-md shadow-inner flex items-center justify-center text-gray-400 overflow-hidden">
+                  {advisorImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img 
+                      src={advisorImageUrl} 
+                      alt="Advisor" 
+                      className="w-full h-full object-cover" 
+                      style={{ objectPosition: 'center 5%' }}
+                    />
+                  ) : (
+                    <span>Image Placeholder</span>
+                  )}
+                </div>
+
+                {/* System Prompt Selector (wired to collection) */}
+                <div className="relative group mt-3">
+                  <button onClick={() => setIsSystemPromptPreviewOpen(true)} className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
                     <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                  <span className="text-xs whitespace-nowrap truncate">{selectedTaskId ? (tasks.find(t => t.id === selectedTaskId)?.name || 'Select Task') : 'Select Task'}</span>
+                    <span>{(systemPrompts.find(p => p.id === selectedSystemPromptId)?.data?.name) || 'System Prompt'}</span>
                   </button>
-                  
-                  {/* Dropdown Menu */}
                   <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
-                    <div className="py-2">
-                      {tasks.map(t => (
+                    <div className="py-2 max-h-64 overflow-auto">
                         <button
-                          key={t.id}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                          onClick={(e) => { e.preventDefault(); setSelectedTaskId(t.id); }}
+                        onClick={() => handleSystemPromptChange("")}
                         >
-                          {t.name}
+                        -- Select a System Prompt --
+                        </button>
+                      {systemPrompts.map(p => (
+                        <button
+                          key={p.id}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                          onClick={() => handleSystemPromptChange(p.id)}
+                        >
+                          {p.data?.name || 'Unnamed'}
                         </button>
                       ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Structure selector */}
-                <div className="relative group mt-4">
-                  <div className="mb-1 text-xs font-medium text-gray-600">Structure</div>
-                  <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
-                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  <span className="text-xs whitespace-nowrap truncate">{selectedStructureId ? (structures.find(s => s.id === selectedStructureId)?.title || 'Select Structure') : 'Select Structure'}</span>
-                  </button>
-                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
-                    <div className="py-2">
-                      {structures.map(s => (
-                        <button
-                          key={s.id}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                          onClick={(e) => { e.preventDefault(); setSelectedStructureId(s.id); }}
-                        >
-                          {s.title}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Company selector */}
-                <div className="relative group mt-4">
-                  <div className="mb-1 text-xs font-medium text-gray-600">Company</div>
-                  <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
-                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  <span className="text-xs whitespace-nowrap truncate">{selectedCompanyId ? (companies.find(c => c.id === selectedCompanyId)?.name || 'Select Company') : 'Select Company'}</span>
-                  </button>
-                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
-                    <div className="py-2">
-                      {companies.map(c => (
-                        <button
-                          key={c.id}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                          onClick={(e) => { e.preventDefault(); setSelectedCompanyId(c.id); }}
-                        >
-                          {c.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* LLM + Model row */}
-                <div className="my-3 border-t border-gray-200" />
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  {/* LLM Provider selector */}
-                  <div className="relative group">
-                    <div className="mb-1 text-xs font-medium text-gray-600">LLM</div>
-                    <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                {/* Structure Selector */}
+                <div className="relative group mt-3">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
                       <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
-                      <span className="text-xs whitespace-nowrap truncate">{provider === "openai" ? "OpenAI" : "Gemini"}</span>
+                    <span>{(structures.find(s => s.id === selectedStructureId)?.data?.name) || 'Select Structure'}</span>
                     </button>
                     <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
-                      <div className="py-2">
-                        {[{id:"openai",label:"OpenAI"},{id:"gemini",label:"Gemini"}].map(p => (
+                    <div className="py-2 max-h-64 overflow-auto">
                           <button
-                            key={p.id}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                            onClick={(e) => { e.preventDefault(); setProvider(p.id as any); }}
+                        onClick={() => setSelectedStructureId("")}
                           >
-                            {p.label}
+                        -- Select a Structure --
+                          </button>
+                      {structures.map(s => (
+                          <button
+                          key={s.id}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                          onClick={() => setSelectedStructureId(s.id)}
+                          >
+                          {s.data?.name || 'Unnamed'}
                           </button>
                         ))}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Model selector (depends on provider) */}
-                  <div className="relative group">
-                    <div className="mb-1 text-xs font-medium text-gray-600">Model</div>
-                    <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
-                      <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                      <span className="text-xs whitespace-nowrap truncate">{model || "Select Model"}</span>
-                    </button>
-                    <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000] max-h-64 overflow-auto">
-                      <div className="py-2">
-                        {(MODEL_OPTIONS[provider] || []).map(m => (
-                          <button
-                            key={m}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                            onClick={(e) => { e.preventDefault(); setModel(m); }}
-                          >
-                            {m}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Tokens + Temperature row */}
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  {/* Max Tokens dropdown */}
-                  <div className="relative group">
-                    <div className="mb-1 text-xs font-medium text-gray-600">Max Tokens</div>
-                    <button className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-black border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                {/* Threshold */}
+                <div className="relative group mt-3">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
                       <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
-                      <span className="whitespace-nowrap truncate">{maxTokens}</span>
+                    <span>Threshold: {completionThreshold}%</span>
                     </button>
-                    <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000] max-h-64 overflow-auto">
-                      <div className="py-2">
-                        {MAX_TOKEN_OPTIONS.map(v => (
-                          <button key={v} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={(e)=>{e.preventDefault(); setMaxTokens(v);}}>{v}</button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Temperature dropdown */}
-                  <div className="relative group">
-                    <div className="mb-1 text-xs font-medium text-gray-600">Temp</div>
-                    <button className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-black border border-gray-300 rounded-md hover:border-gray-400 transition-all">
-                      <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                      <span className="whitespace-nowrap truncate">{temperature}</span>
+                  <div className="absolute left-0 bottom-full mb-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(threshold => (
+                          <button
+                          key={threshold}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                          onClick={() => setCompletionThreshold(threshold)}
+                          >
+                          {threshold}%
                     </button>
-                    <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000] max-h-64 overflow-auto">
-                      <div className="py-2">
-                        {TEMP_OPTIONS.map(v => (
-                          <button key={v} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={(e)=>{e.preventDefault(); setTemperature(v);}}>{v}</button>
                         ))}
-                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Show + Run row */}
-                <div className="grid grid-cols-2 gap-3 mt-3">
+                {/* Controls button (like Model Builder) */}
+                <div className="mt-3">
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors"
-                    onClick={() => setShowPayload(true)}
+                    onClick={() => setIsControlsOpen(true)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all"
                   >
-                    Show
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isRunningFullPayload || !selectedTaskId || !selectedStructureId || !selectedCompanyId}
-                    onClick={async () => {
-                      if (isRunningFullPayload) return;
-                      
-                      const debugInfo = {
-                        timestamp: new Date().toISOString(),
-                        request: {
-                          url: '/api/data-mapper/process',
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: payload
-                        },
-                        response: null,
-                        error: null,
-                        parsedPayload: payload
-                      };
-                      
-                      try {
-                        setIsRunningFullPayload(true);
-                        setFullPayloadError(null);
-                        setFullPayloadResult(null);
-                        setFullPayloadDebugInfo(null);
-                        setShowDebugInfo(false);
-                        
-                        // Call the structured data mapper endpoint
-                        const response = await fetch('/api/data-mapper/process', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(payload)
-                        });
-                        
-                        debugInfo.response = {
-                          status: response.status,
-                          statusText: response.statusText,
-                          headers: Object.fromEntries(response.headers.entries()),
-                          url: response.url
-                        };
-                        
-                        const result = await response.json();
-                        debugInfo.response.body = result;
-                        
-                        if (response.ok) {
-                          setFullPayloadResult(result);
-                          triggerSuccessSequence();
-                        } else {
-                          debugInfo.error = {
-                            type: 'API_ERROR',
-                            message: result.error || 'API call failed',
-                            details: result.details || null,
-                            stage: 'api_response'
-                          };
-                          setFullPayloadError(result.error || 'API call failed');
-                          setFullPayloadDebugInfo(debugInfo);
-                        }
-                        
-                      } catch (error) {
-                        console.error('Structured payload API error:', error);
-                        
-                        if (!debugInfo.error) {
-                          debugInfo.error = {
-                            type: 'NETWORK_ERROR',
-                            message: error instanceof Error ? error.message : 'Unknown network error',
-                            stage: 'network'
-                          };
-                        }
-                        
-                        setFullPayloadError(
-                          error instanceof Error
-                            ? error.message
-                            : 'Network error occurred'
-                        );
-                        setFullPayloadDebugInfo(debugInfo);
-                      } finally {
-                        setIsRunningFullPayload(false);
-                      }
-                    }}
-                  >
-                    {isRunningFullPayload ? 'Running...' : 'Run'}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    <span>Controls</span>
                   </button>
                 </div>
 
                 {/* Separator */}
-                <div className="my-3 border-t border-gray-200" />
+                <div className="border-t border-gray-200 my-3"></div>
 
-                {/* Full Payload Button */}
+                {/* Preflight and Call (match Model Builder styles) */}
+                <div className="flex gap-2">
                 <button
                   type="button"
-                  className="w-full px-3 py-1.5 text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors"
-                  onClick={() => setShowFullPayload(true)}
-                >
-                  Full Payload
+                    className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handlePreflight}
+                    disabled={isCallingApi}
+                  >
+                    Preflight
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleCall}
+                    disabled={!preflightPayload || isCallingApi}
+                  >
+                    {isCallingApi ? 'Calling...' : 'Call'}
                 </button>
-              </div>
-              )}
             </div>
           </div>
 
-          {/* Right Panel - 75% width, Outputs Panel */}
+                {/* Chat Box - expands to right when inputsExpanded is true */}
+                <div className={`${inputsExpanded ? 'flex-1' : 'mt-3'}`}>
+                <div className={`border border-gray-200 rounded-lg bg-white shadow-sm ${inputsExpanded && !isChatCollapsed ? 'h-full' : ''}`} style={inputsExpanded && !isChatCollapsed ? { height: 'calc(100vh - 120px)' } : {}}>
+                  {/* Chat Header */}
+                  <div 
+                    className={`px-3 py-1.5 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors ${isChatCollapsed ? 'rounded-md' : 'border-b border-gray-100 rounded-t-md'}`}
+                    onClick={() => setIsChatCollapsed(!isChatCollapsed)}
+              >
+                <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                    <svg
+                          className={`w-4 h-4 text-gray-600 transform transition-transform duration-200 ${isChatCollapsed ? 'rotate-0' : 'rotate-90'}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                        {isChatCollapsed && (
+                          <span className="text-sm text-gray-700" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                            Chat to {advisorName || 'Advisor'}
+                          </span>
+                        )}
+                  </div>
+                      <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyChatDebug();
+                    }}
+                          className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors font-mono"
+                          title="Copy chat debug info"
+                  >
+                          &lt;&gt;
+                  </button>
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                </div>
+              </div>
+                </div>
+
+                  {/* Chat Content - Collapsible */}
+                  {!isChatCollapsed && (
+                    <>
+                      {/* Chat Messages */}
+                      <div 
+                        ref={chatContainerRef}
+                        className={`${inputsExpanded ? 'h-full' : 'max-h-64'} overflow-y-auto p-3 space-y-3`}
+                        style={{ 
+                          fontFamily: 'Inter, system-ui, sans-serif',
+                          ...(inputsExpanded ? { height: 'calc(100vh - 220px)' } : {})
+                        }}
+                      >
+                    {chatMessages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
+                            message.isUser
+                              ? 'bg-blue-500 text-white rounded-br-sm'
+                              : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                          }`}
+                        >
+                          <div className="whitespace-pre-wrap">{message.text}</div>
+                          <div className={`text-xs mt-1 ${message.isUser ? 'text-blue-100' : 'text-gray-500'}`}>
+                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                      </div>
+                    ))}
+                    
+                    {/* Typing indicator */}
+                    {isTypingResponse && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-100 text-gray-800 rounded-lg rounded-bl-sm px-3 py-2 text-sm">
+                          <div className="flex items-center gap-1">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            </div>
+                    </div>
+                            </div>
+                          </div>
+                        )}
+                </div>
+
+                  {/* Chat Input */}
+                  <div className="p-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2 w-full">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyPress={handleChatKeyPress}
+                        placeholder="Ask me about design..."
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-0"
+                        style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                        disabled={isTypingResponse}
+                      />
+                            <button
+                        onClick={handleSendMessage}
+                        disabled={!chatInput.trim() || isTypingResponse}
+                        className="flex-shrink-0 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center w-10 h-10"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                            </button>
+                          </div>
+                                  </div>
+                    </>
+              )}
+                                              </div>
+                                        </div>
+                                      </div>
+                                  </div>
+                          </div>
+                        </div>
+
+          {/* Right Panel - Outputs Panel */}
           <div
             className="overflow-hidden"
-            style={{ width: outputsExpanded ? "100%" : "calc(75% - 0.5rem)", transition: "width 200ms ease" }}
+            style={{ 
+              width: inputsExpanded ? "0%" : (outputsExpanded ? "100%" : "calc(75% - 0.5rem)"), 
+              transition: "width 200ms ease",
+              pointerEvents: inputsExpanded ? "none" : "auto"
+            }}
           >
-            <div className="bg-white rounded-md border border-gray-200 transition-colors relative">
+            <div className={`bg-white rounded-md border border-gray-200 transition-colors relative ${isOutputsPanelBlinking ? "nb-anim-outputs-panel-blink" : ""} ${inputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200`}>
               <div 
                 className="bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 cursor-pointer hover:bg-gray-200 transition-colors min-h-[52px] flex items-center"
-                onClick={() => setOutputsExpanded((v) => !v)}
+                onClick={() => {
+                  setOutputsExpanded((v) => !v);
+                  if (!outputsExpanded) setInputsExpanded(false); // Collapse inputs when expanding outputs
+                }}
                 role="button"
                 tabIndex={0}
                 aria-label="Toggle Outputs width"
@@ -841,6 +1086,7 @@ export default function DataMapperPage() {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setOutputsExpanded((v) => !v);
+                    if (!outputsExpanded) setInputsExpanded(false); // Collapse inputs when expanding outputs
                   }
                 }}
               >
@@ -855,8 +1101,8 @@ export default function DataMapperPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     <h2 className="text-sm font-medium text-gray-900">Outputs Panel</h2>
-                  </div>
-                  <button
+                </div>
+                          <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent triggering the panel toggle
@@ -866,278 +1112,117 @@ export default function DataMapperPage() {
                     aria-label="Show How it Works"
                   >
                     How it Works?
-                  </button>
-                </div>
-              </div>
-              <div className="p-4">
-                {fullPayloadResult ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-medium text-gray-900">API Response</div>
-                      <div className="flex gap-2">
-                        <button
-                          className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                          onClick={() => {
-                            const rawResponse = JSON.stringify(fullPayloadResult, null, 2);
-                            navigator.clipboard?.writeText(rawResponse);
-                          }}
-                        >
-                          Copy Raw
-                        </button>
-                        <button
-                          className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                          onClick={() => {
-                            setFullPayloadResult(null);
-                            setFullPayloadError(null);
-                            setFullPayloadDebugInfo(null);
-                          }}
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gray-50 border border-gray-200 rounded-md">
-                      <div className="px-3 py-2 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-700">
-                        Raw Response
-                      </div>
-                      <pre className="p-3 text-xs text-gray-800 overflow-auto max-h-96 whitespace-pre-wrap">
-                        {JSON.stringify(fullPayloadResult, null, 2)}
-                      </pre>
-                    </div>
-                    
-                    {parsedBusinessPlan ? (
-                      <div className="space-y-4">
-                        {/* Parse Error Warning */}
-                        {parsedBusinessPlan.parseError && (
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                            <div className="flex items-center gap-2">
-                              <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
-                              </svg>
-                              <span className="text-sm font-medium text-yellow-800">Parsing Warning</span>
-                            </div>
-                            <div className="text-sm text-yellow-700 mt-1">
-                              Some content may not have been parsed correctly: {parsedBusinessPlan.parseError}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Business Plan Structure */}
-                        <div className="bg-green-50 border border-green-200 rounded-md">
-                          <div className="px-3 py-2 border-b border-green-200 bg-green-100 flex items-center justify-between">
-                            <span className="text-xs font-medium text-green-800">Structured Business Plan</span>
-                            <button
-                              className="text-xs px-2 py-1 bg-green-200 text-green-800 rounded hover:bg-green-300"
-                              onClick={() => {
-                                const plainText = generatePlainTextPlan(parsedBusinessPlan);
-                                navigator.clipboard?.writeText(plainText);
-                              }}
-                            >
-                              Copy Plan
-                            </button>
-                          </div>
-                          <div className="p-3 space-y-4">
-                            {parsedBusinessPlan.businessPlan.length > 0 ? (
-                              parsedBusinessPlan.businessPlan.map((topic: any, topicIndex: number) => (
-                                <div key={topicIndex} className="border border-gray-200 rounded-md">
-                                  <div className="px-3 py-2 bg-gray-100 border-b border-gray-200">
-                                    <h3 className="text-sm font-medium text-gray-900">{topic.title}</h3>
-                                  </div>
-                                  <div className="p-3 space-y-3">
-                                    {topic.subtopics.map((subtopic: any, subtopicIndex: number) => (
-                                      <div key={subtopicIndex} className="border-l-2 border-blue-200 pl-3">
-                                        <h4 className="text-sm font-medium text-blue-800 mb-2">{subtopic.title}</h4>
-                                        <div className="space-y-1">
-                                          {subtopic.dataPoints.length > 0 ? (
-                                            subtopic.dataPoints.map((dataPoint: any, dpIndex: number) => (
-                                              <div key={dpIndex} className="text-sm text-gray-700 flex">
-                                                <span className="text-blue-600 mr-2">•</span>
-                                                <span>
-                                                  {dataPoint.questionId && (
-                                                    <span className="text-blue-600 font-mono text-xs mr-2">
-                                                      ([{dataPoint.questionId}])
-                                                    </span>
-                                                  )}
-                                                  {dataPoint.text || dataPoint.raw}
-                                                </span>
-                                              </div>
-                                            ))
-                                          ) : (
-                                            <div className="text-xs text-gray-500 italic">No mapped data points.</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-sm text-gray-500 italic text-center py-4">
-                                No business plan structure found.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Unallocated Data Points */}
-                        <div className="border border-gray-200 rounded-md">
-                          <button
-                            onClick={() => setShowUnallocated(!showUnallocated)}
-                            className="w-full px-3 py-2 bg-yellow-50 border-b border-gray-200 flex items-center justify-between text-left hover:bg-yellow-100"
-                          >
-                            <span className="text-sm font-medium text-yellow-800">
-                              Unallocated ({parsedBusinessPlan.unallocated?.length || 0})
-                            </span>
-                            <svg 
-                              className={`w-4 h-4 transform transition-transform ${showUnallocated ? 'rotate-90' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                          {showUnallocated && (
-                            <div className="p-3 space-y-2">
-                              {parsedBusinessPlan.unallocated && parsedBusinessPlan.unallocated.length > 0 ? (
-                                parsedBusinessPlan.unallocated.map((item: string, index: number) => (
-                                  <div key={index} className="text-sm text-gray-700 flex">
-                                    <span className="text-yellow-600 mr-2">•</span>
-                                    <span>{item}</span>
-                </div>
-                                ))
-                              ) : (
-                                <div className="text-sm text-gray-500 italic">No unallocated data points</div>
-                              )}
-              </div>
-                          )}
-            </div>
-
-                        {/* Unanswered Questions */}
-                        <div className="border border-gray-200 rounded-md">
-                          <button
-                            onClick={() => setShowUnanswered(!showUnanswered)}
-                            className="w-full px-3 py-2 bg-red-50 border-b border-gray-200 flex items-center justify-between text-left hover:bg-red-100"
-                          >
-                            <span className="text-sm font-medium text-red-800">
-                              Unanswered ({parsedBusinessPlan.unanswered?.reduce((total: number, topic: any) => 
-                                total + (topic.subtopics?.reduce((subTotal: number, subtopic: any) => subTotal + (subtopic.questions?.length || 0), 0) || 0), 0) || 0})
-                            </span>
-                            <svg 
-                              className={`w-4 h-4 transform transition-transform ${showUnanswered ? 'rotate-90' : ''}`}
-                              fill="none" 
-                              stroke="currentColor" 
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
                           </button>
-                          {showUnanswered && (
-                            <div className="p-3 space-y-3">
-                              {parsedBusinessPlan.unanswered && parsedBusinessPlan.unanswered.length > 0 ? (
-                                parsedBusinessPlan.unanswered.map((topic: any, topicIndex: number) => (
-                                  <div key={topicIndex}>
-                                    <h4 className="text-sm font-medium text-gray-900 mb-2">{topic.title}</h4>
-                                    {topic.subtopics && topic.subtopics.map((subtopic: any, subtopicIndex: number) => (
-                                      <div key={subtopicIndex} className="border-l-2 border-red-200 pl-3 mb-2">
-                                        <h5 className="text-sm font-medium text-red-800 mb-1">{subtopic.title}</h5>
-                                        <div className="space-y-1">
-                                          {subtopic.questions && subtopic.questions.length > 0 ? (
-                                            subtopic.questions.map((question: string, qIndex: number) => (
-                                              <div key={qIndex} className="text-sm text-gray-700 flex">
-                                                <span className="text-red-600 mr-2">•</span>
-                                                <span>{question}</span>
                                               </div>
-                                            ))
-                                          ) : (
-                                            <div className="text-xs text-gray-500 italic">No unanswered questions in this subtopic</div>
-                                          )}
                                         </div>
+{(showHowItWorks || isSimulating || simulateResult || callResponse || isCallingApi) && (
+              <div className="p-4">
+                  {showHowItWorks && (
+                    <div>
+                      <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
+                        {typedText}
+                        {isTyping && <span className="inline-block w-2 h-4 bg-gray-400 ml-1 align-baseline animate-pulse" />}
                                       </div>
-                                    ))}
                                   </div>
-                                ))
-                              ) : (
-                                <div className="text-sm text-gray-500 italic">No unanswered questions</div>
-                              )}
+                  )}
+
+                  {/* Simulation states */}
+                  {isSimulating && (
+                    <div className="my-3 flex justify-center">
+                      <div className="w-1/2">
+                        <div className="border border-gray-200 bg-gray-50 rounded-md h-9 px-4 flex items-center justify-center overflow-hidden">
+                          <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
+                            {loadingMessages[loadingMessageIndex]}
                             </div>
+                        </div>
+                      </div>
+                        </div>
+                        )}
+                  {!isSimulating && simulateResult && (
+                    <div className="mt-3 text-sm text-gray-800">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                        <span>Simulation complete in {Math.round(simulateResult.elapsedMs)} ms</span>
+                        </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
+                      </div>
+                  </div>
+                )}
+
+                  {/* API Call States */}
+                  {isCallingApi && (
+                    <div className="my-3">
+                      <div className="text-sm text-gray-700 flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Calling API...</span>
+                        </div>
+                      </div>
                           )}
-                        </div>
-                      </div>
-                    ) : fullPayloadResult.result?.content ? (
-                      <div className="bg-blue-50 border border-blue-200 rounded-md">
-                        <div className="px-3 py-2 border-b border-blue-200 bg-blue-100 text-xs font-medium text-blue-800">
-                          AI Response Content (Raw)
-                        </div>
-                        <div className="p-3 text-sm text-gray-800 whitespace-pre-wrap max-h-64 overflow-auto">
-                          {fullPayloadResult.result.content}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : isRunningFullPayload ? (
-                  <div className="flex justify-center py-8">
-                    <div className="w-2/3">
-                      <div className="border border-gray-200 bg-gray-50 rounded-md h-12 px-4 flex items-center justify-center overflow-hidden">
-                        <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
-                          {loadingMessages[loadingMessageIndex]}
-                        </div>
-                      </div>
+
+                  {!isCallingApi && callResponse && (
+                    <div className="mt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                        <span className="text-sm font-medium text-gray-900">API Response:</span>
                     </div>
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-4 max-h-96 overflow-auto">
+                        <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">
+                          {JSON.stringify(callResponse, null, 2)}
+                        </pre>
                   </div>
-                ) : (
-                  <div className="text-center text-gray-500 text-sm">
-                    No output yet. Run an API call to see results here.
                   </div>
                 )}
               </div>
+                          )}
               {showHowItWorks && (
-                <div className="p-4 border-t border-gray-200 relative">
-                  <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
-                    <div className="space-y-3">
-                      <p><strong>Data Mapper - How it Works:</strong></p>
-                      <p>1. <strong>Select Your Components:</strong> Choose a Task (with prompt instructions), Structure (compiled business plan template), and Company (raw data source).</p>
-                      <p>2. <strong>Configure AI Settings:</strong> Set your preferred model (GPT-4o recommended), temperature (0.2 for consistency), and max tokens (3000 for comprehensive output).</p>
-                      <p>3. <strong>Run Processing:</strong> Click "Run" to send structured data to OpenAI, or use "Full Payload" for custom JSON requests.</p>
-                      <p>4. <strong>Review Results:</strong> The AI processes your company data according to the task instructions and structure template, producing organized business plans with allocated data points, unallocated items, and unanswered questions.</p>
-                      <p>5. <strong>Export & Share:</strong> Copy the structured results or raw output for further use in your business planning workflow.</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end mt-4">
+                <div className="absolute right-3 bottom-3">
+                  {howItWorksStep + 1 >= howItWorksTexts.length ? (
                     <button
-                      onClick={() => setShowHowItWorks(false)}
-                      className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md text-xs hover:bg-gray-300 transition-colors"
+                      type="button"
+                      onClick={handleCloseHowItWorks}
+                      className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 border border-blue-300"
                     >
                       Close
                     </button>
-                  </div>
+                  ) : (
+                          <button
+                      type="button"
+                      onClick={handleNextHowItWorks}
+                      className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 border border-blue-300"
+                    >
+                      {howItWorksStep + 1} / {howItWorksTexts.length} Next
+                          </button>
+                  )}
                 </div>
               )}
               {/* Action icons top-right */}
               {showActions && (
-                <div className="absolute top-2 right-2 flex flex-row-reverse items-center gap-2">
+                <div className="absolute top-2 right-2 flex items-center gap-2">
                   {actionItems.slice(0, visibleActionCount).map((a, idx) => (
                     <div key={a.key} className="relative group">
                       <button
                         title={a.title}
                         className="bg-blue-100 text-blue-800 border border-blue-300 rounded-md p-1 shadow-sm hover:bg-blue-200 transition-all nb-anim-fade-slide-in"
                         style={{ animationDelay: `${idx * 60}ms` }}
+                        onClick={a.key === 'trash' ? handleClearOutputs : undefined}
                       >
                         {a.svg}
                       </button>
+                      
+                      {/* Hover Dropdown */}
                       <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
                         <div className="py-2">
                           {dropdownOptions[a.key as keyof typeof dropdownOptions]?.map((option, optIdx) => (
-                            option.separator ? (
+                            'separator' in option && option.separator ? (
                               <hr key={`sep-${optIdx}`} className="my-1 border-gray-200" />
                             ) : (
                               <button
                                 key={`opt-${optIdx}`}
-                                onClick={option.action}
+                                onClick={'action' in option ? option.action : undefined}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                               >
-                                {option.label}
+                                {'label' in option ? option.label : ''}
                               </button>
                             )
                           ))}
@@ -1151,314 +1236,316 @@ export default function DataMapperPage() {
           </div>
         </div>
       </div>
-      {showPayload && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowPayload(false)} />
-          <div className="relative bg-white w-[min(90vw,700px)] max-h-[80vh] rounded-lg border border-gray-200 shadow-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-              <div className="text-sm font-medium text-gray-900">Pre-flight Payload</div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="text-xs px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
-                  onClick={() => navigator.clipboard?.writeText(JSON.stringify(payload, null, 2))}
-                >
-                  Copy
+
+      {/* Controls Panel (no backdrop), matches Model Builder styling */}
+      {isControlsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl w-full" style={{ fontFamily: 'Inter, system-ui, sans-serif', maxWidth: '672px' }}>
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">Controls</h3>
+              <button onClick={() => setIsControlsOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3">
+              {/* LLM Selection */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">LLM</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{llm}</span>
                 </button>
-                <button
-                  className="text-xs px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
-                  onClick={() => setShowPayload(false)}
-                >
-                  Close
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {['OpenAI', 'Anthropic', 'Google', 'Meta', 'Mistral'].map(llmOption => (
+                        <button key={llmOption} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => handleLlmChange(llmOption)}>
+                          {llmOption}
                 </button>
+                      ))}
               </div>
             </div>
-            <div className="p-4 overflow-auto max-h-[60vh]">
-              <pre className="text-xs leading-5 text-gray-800 whitespace-pre-wrap">
-{JSON.stringify(payload, null, 2)}
+            </div>
+          </div>
+
+              {/* Model Selection */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Model</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{model}</span>
+                </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {modelsByLlm[llm]?.map(modelOption => (
+                        <button key={modelOption} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setModel(modelOption)}>
+                          {modelOption}
+                </button>
+                      ))}
+              </div>
+            </div>
+                </div>
+              </div>
+
+              {/* Response Format */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Response Format</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{responseFormat === 'json_object' ? 'type: json_object' : `type: ${responseFormat}`}</span>
+                          </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {(['json_object','text','xml'] as const).map(fmt => (
+                        <button key={fmt} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setResponseFormat(fmt)}>
+                          {fmt === 'json_object' ? 'type: json_object' : `type: ${fmt}`}
+                            </button>
+                      ))}
+                        </div>
+                      </div>
+                        </div>
+                      </div>
+                      
+              {/* Temperature */}
+                            <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Temperature</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(temperature).toFixed(1)}</span>
+                            </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0,0.2,0.4,0.7,1.0,1.3,1.8,2.0].map(t => (
+                        <button key={t} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setTemperature(t)}>
+                          {t.toFixed(1)}
+                        </button>
+                      ))}
+                              </div>
+                            </div>
+                </div>
+                          </div>
+                          
+              {/* Top P */}
+                            <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Top P</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(topP).toFixed(1)}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0,0.1,0.2,0.3,0.5,0.7,0.9,1.0].map(p => (
+                        <button key={p} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setTopP(p)}>
+                          {p.toFixed(1)}
+                        </button>
+                      ))}
+                              </div>
+                  </div>
+                              </div>
+                            </div>
+                            
+              {/* Max Tokens */}
+                            <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Max Tokens</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{maxOutputTokens.toLocaleString()}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[1000,2000,2500,3000,4000,5000,8000,10000,16000,32000].map(tok => (
+                        <button key={tok} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setMaxOutputTokens(tok)}>
+                          {tok.toLocaleString()}
+                        </button>
+                      ))}
+                              </div>
+                            </div>
+                          </div>
+                            </div>
+                            
+              {/* Reasoning Effort */}
+                              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Reasoning Effort</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{reasoningEffort}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {(['low', 'medium', 'high'] as const).map(effort => (
+                        <button key={effort} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setReasoningEffort(effort)}>
+                          {effort}
+                        </button>
+                      ))}
+                              </div>
+                  </div>
+                </div>
+              </div>
+                            
+              {/* Verbosity */}
+                            <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Verbosity</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{verbosity}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {(['low', 'medium', 'high'] as const).map(verb => (
+                        <button key={verb} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setVerbosity(verb)}>
+                          {verb}
+                        </button>
+                      ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+              {/* Frequency Penalty */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Frequency Penalty</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(frequencyPenalty).toFixed(1)}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0].map(penalty => (
+                        <button key={penalty} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setFrequencyPenalty(penalty)}>
+                          {penalty.toFixed(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                        </div>
+                      </div>
+                      
+              {/* Presence Penalty */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Presence Penalty</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{Number(presencePenalty).toFixed(1)}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0].map(penalty => (
+                        <button key={penalty} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setPresencePenalty(penalty)}>
+                          {penalty.toFixed(1)}
+                        </button>
+                      ))}
+                        </div>
+                      </div>
+                </div>
+                      </div>
+                      
+              {/* Store Logs */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Store Logs</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{storeLogs ? 'On' : 'Off'}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      <button type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setStoreLogs(true)}>
+                        On
+                      </button>
+                      <button type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setStoreLogs(false)}>
+                        Off
+                      </button>
+                    </div>
+                </div>
+            </div>
+              </div>
+                    </div>
+                        </div>
+                </div>
+              )}
+
+      {/* System Prompt Preview - centered */}
+      {isSystemPromptPreviewOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div 
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl flex flex-col"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif', width: '72rem', maxWidth: '90vw', aspectRatio: '16/9' }}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">System Prompt</h3>
+              <button onClick={() => setIsSystemPromptPreviewOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              <div className="text-sm bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-gray-900">
+                {String(systemPrompt || '')}
+                      </div>
+                      </div>
+                    </div>
+                </div>
+              )}
+
+      {/* Preflight Payload Preview - centered */}
+      {isPreflightOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div 
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl flex flex-col"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif', width: '72rem', maxWidth: '90vw', aspectRatio: '16/9' }}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">Preflight Payload</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(preflightPayload, null, 2));
+                  }}
+                  className="text-gray-500 hover:text-gray-700 p-1 rounded hover:bg-gray-100 transition-colors"
+                  title="Copy to clipboard"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+              </button>
+                <button onClick={() => setIsPreflightOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+              </div>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              <pre className="text-xs bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-gray-900 font-mono">
+                {JSON.stringify(preflightPayload, null, 2)}
               </pre>
             </div>
           </div>
         </div>
       )}
-      {showFullPayload && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowFullPayload(false)} />
-          <div className="relative bg-white w-[min(95vw,800px)] h-[min(85vh,700px)] rounded-lg border border-gray-200 shadow-xl overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-              <div className="text-sm font-medium text-gray-900">Full Payload</div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="text-xs px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
-                  onClick={() => navigator.clipboard?.writeText(fullPayloadText)}
-                >
-                  Copy
-                </button>
-                <button
-                  className="text-xs px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
-                  onClick={() => setShowFullPayload(false)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-            <div className="p-4 flex-1 overflow-auto">
-              {!fullPayloadResult && !fullPayloadError ? (
-              <textarea
-                className="w-full h-full text-xs leading-5 text-gray-800 border border-gray-300 rounded-md p-3 font-mono"
-                value={fullPayloadText}
-                onChange={(e) => setFullPayloadText(e.target.value)}
-                  placeholder="Enter your custom JSON payload here..."
-                />
-              ) : (
-                <div className="h-full overflow-auto">
-                  {fullPayloadError ? (
-                    <div className="space-y-3">
-                      <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                        <div className="text-sm font-medium text-red-800 mb-2">Error</div>
-                        <div className="text-sm text-red-700 mb-3">{fullPayloadError}</div>
-                        
-                        <div className="flex gap-2 flex-wrap">
-                          <button
-                            className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200"
-                            onClick={() => {
-                              setFullPayloadError(null);
-                              setFullPayloadResult(null);
-                              setFullPayloadDebugInfo(null);
-                              setShowDebugInfo(false);
-                            }}
-                          >
-                            Try Again
-                          </button>
-                          
-                          {fullPayloadDebugInfo && (
-                            <button
-                              className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                              onClick={() => setShowDebugInfo(!showDebugInfo)}
-                            >
-                              {showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {showDebugInfo && fullPayloadDebugInfo && (
-                        <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-sm font-medium text-gray-800">Debug Information</div>
-                            <button
-                              className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                              onClick={() => {
-                                const essentialDebug = {
-                                  timestamp: fullPayloadDebugInfo.timestamp,
-                                  error: {
-                                    type: fullPayloadDebugInfo.error?.type,
-                                    message: fullPayloadDebugInfo.error?.message,
-                                    stage: fullPayloadDebugInfo.error?.stage,
-                                    ...(fullPayloadDebugInfo.error?.details && { details: fullPayloadDebugInfo.error.details })
-                                  },
-                                  request: {
-                                    url: fullPayloadDebugInfo.request?.url,
-                                    method: fullPayloadDebugInfo.request?.method
-                                  },
-                                  ...(fullPayloadDebugInfo.response && {
-                                    response: {
-                                      status: fullPayloadDebugInfo.response.status,
-                                      statusText: fullPayloadDebugInfo.response.statusText,
-                                      error: fullPayloadDebugInfo.response.body?.error,
-                                      details: fullPayloadDebugInfo.response.body?.details
-                                    }
-                                  })
-                                };
-                                const debugText = JSON.stringify(essentialDebug, null, 2);
-                                navigator.clipboard?.writeText(debugText);
-                              }}
-                            >
-                              Copy Debug Info
-                            </button>
-                          </div>
-                          
-                          <div className="space-y-3 text-xs">
-                            <div>
-                              <div className="font-medium text-gray-700 mb-1">Error Details:</div>
-                              <div className="bg-white border rounded p-2">
-                                <div><strong>Type:</strong> {fullPayloadDebugInfo.error?.type}</div>
-                                <div><strong>Stage:</strong> {fullPayloadDebugInfo.error?.stage}</div>
-                                <div><strong>Message:</strong> {fullPayloadDebugInfo.error?.message}</div>
-                                {fullPayloadDebugInfo.error?.details && (
-                                  <div><strong>Details:</strong> {fullPayloadDebugInfo.error.details}</div>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <div className="font-medium text-gray-700 mb-1">Request:</div>
-                              <pre className="bg-white border rounded p-2 text-xs overflow-auto max-h-32">
-                                {JSON.stringify(fullPayloadDebugInfo.request, null, 2)}
-                              </pre>
-                            </div>
-                            
-                            {fullPayloadDebugInfo.response && (
-                              <div>
-                                <div className="font-medium text-gray-700 mb-1">Response:</div>
-                                <pre className="bg-white border rounded p-2 text-xs overflow-auto max-h-32">
-                                  {JSON.stringify(fullPayloadDebugInfo.response, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                            
-                            <div>
-                              <div className="font-medium text-gray-700 mb-1">Timestamp:</div>
-                              <div className="bg-white border rounded p-2">
-                                {fullPayloadDebugInfo.timestamp}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : fullPayloadResult ? (
-                    <div className="space-y-4">
-                      <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                        <div className="text-sm font-medium text-green-800 mb-1">Success</div>
-                        <div className="text-xs text-green-700">
-                          API Call Type: {fullPayloadResult.apiCallType} | 
-                          Model: {fullPayloadResult.result?.model} | 
-                          Tokens: {fullPayloadResult.result?.usage?.total_tokens || 'N/A'}
-                        </div>
-                      </div>
-                      
-                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-                        <div className="text-sm font-medium text-gray-800 mb-2">AI Response</div>
-                        <div className="text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-auto">
-                          {fullPayloadResult.result?.content || 'No content returned'}
-                        </div>
-                      </div>
-                      
-                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-                        <div className="text-sm font-medium text-gray-800 mb-2">Full Response</div>
-                        <pre className="text-xs text-gray-600 whitespace-pre-wrap max-h-40 overflow-auto">
-                          {JSON.stringify(fullPayloadResult, null, 2)}
-                        </pre>
-                      </div>
-                      
-                      <button
-                        className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                        onClick={() => {
-                          setFullPayloadError(null);
-                          setFullPayloadResult(null);
-                        }}
-                      >
-                        Run Another Request
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </div>
-            <div className="p-3 border-t border-gray-200 flex justify-end gap-2">
-              <button
-                className={`text-sm px-3 py-1.5 border border-gray-300 rounded-md transition-colors ${
-                  isRunningFullPayload 
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                    : 'hover:bg-gray-50 text-gray-700'
-                }`}
-                disabled={isRunningFullPayload}
-                onClick={async () => {
-                  if (isRunningFullPayload) return;
-                  
-                  const debugInfo = {
-                    timestamp: new Date().toISOString(),
-                    request: {
-                      url: '/api/data-mapper/process-custom',
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: fullPayloadText
-                    },
-                    response: null,
-                    error: null,
-                    parsedPayload: null
-                  };
-                  
-                  try {
-                    setIsRunningFullPayload(true);
-                    setFullPayloadError(null);
-                    setFullPayloadResult(null);
-                    setFullPayloadDebugInfo(null);
-                    setShowDebugInfo(false);
-                    
-                    // Validate JSON first
-                    try {
-                      debugInfo.parsedPayload = JSON.parse(fullPayloadText);
-                    } catch (parseError) {
-                      debugInfo.error = {
-                        type: 'JSON_PARSE_ERROR',
-                        message: parseError instanceof Error ? parseError.message : 'Invalid JSON',
-                        stage: 'validation'
-                      };
-                      throw parseError;
-                    }
-                    
-                    // Call the correct endpoint
-                    const response = await fetch('/api/data-mapper/process-custom', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: fullPayloadText
-                    });
-                    
-                    debugInfo.response = {
-                      status: response.status,
-                      statusText: response.statusText,
-                      headers: Object.fromEntries(response.headers.entries()),
-                      url: response.url
-                    };
-                    
-                    const result = await response.json();
-                    debugInfo.response.body = result;
-                    
-                    if (response.ok) {
-                      setFullPayloadResult(result);
-                      setShowFullPayload(false); // Close the modal on success
-                      triggerSuccessSequence();
-                    } else {
-                      debugInfo.error = {
-                        type: 'API_ERROR',
-                        message: result.error || 'API call failed',
-                        details: result.details || null,
-                        stage: 'api_response'
-                      };
-                      setFullPayloadError(result.error || 'API call failed');
-                      setFullPayloadDebugInfo(debugInfo);
-                    }
-                    
-                  } catch (error) {
-                    console.error('Full payload API error:', error);
-                    
-                    if (!debugInfo.error) {
-                      debugInfo.error = {
-                        type: 'NETWORK_ERROR',
-                        message: error instanceof Error ? error.message : 'Unknown network error',
-                        stage: 'network'
-                      };
-                    }
-                    
-                    setFullPayloadError(
-                      error instanceof Error 
-                        ? error.message 
-                        : 'Invalid JSON or network error'
-                    );
-                    setFullPayloadDebugInfo(debugInfo);
-                  } finally {
-                    setIsRunningFullPayload(false);
-                  }
-                }}
-              >
-                {isRunningFullPayload ? 'Running...' : 'Run Full Payload API Call'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </>
   );
 }
-

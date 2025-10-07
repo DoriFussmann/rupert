@@ -35,6 +35,7 @@ export default function BusinessTaxonomy() {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [llm, setLlm] = useState<string>('OpenAI');
   const [model, setModel] = useState<string>('gpt-4o');
+  const [responseFormat, setResponseFormat] = useState<'text' | 'json_object' | 'xml'>('text');
   const [temperature, setTemperature] = useState<number>(0.3);
   const [topP, setTopP] = useState<number>(1.0);
   const [maxOutputTokens, setMaxOutputTokens] = useState<number>(1800);
@@ -82,8 +83,10 @@ export default function BusinessTaxonomy() {
       // Call API to get the opening message
       const sendOpeningMessage = async () => {
         try {
+          console.log('🚀 Opening Message: Starting to send opening message');
           const payload = {
             model: model,
+            response_format: { type: responseFormat },
             temperature: temperature,
             top_p: topP,
             max_tokens: maxOutputTokens,
@@ -101,6 +104,12 @@ export default function BusinessTaxonomy() {
             ]
           };
           
+          console.log('🚀 Opening Message: Sending payload:', {
+            model: payload.model,
+            messageCount: payload.messages.length,
+            systemPromptLength: systemPrompt.length
+          });
+          
           const response = await fetch('/api/openai/chat', {
             method: 'POST',
             headers: {
@@ -109,19 +118,49 @@ export default function BusinessTaxonomy() {
             body: JSON.stringify(payload)
           });
           
+          console.log('🚀 Opening Message: Response status:', response.status, response.statusText);
+          
           if (response.ok) {
             const data = await response.json();
-            const result = data.response || `Hello, I am ${advisorName}.`;
+            console.log('🚀 Opening Message: Response data:', data);
+            let result = data.response || `Hello, I am ${advisorName}.`;
+            
+            console.log('✅ Opening Message: Got result, type:', typeof result, ', length:', result?.length || 0);
+            
+            // If the response is JSON, try to parse and format it nicely
+            let displayText = result;
+            
+            try {
+              if (typeof result === 'string' && result.trim().startsWith('{')) {
+                const parsedJson = JSON.parse(result);
+                console.log('✅ Opening Message: Successfully parsed JSON response');
+                
+                // Format JSON for display
+                displayText = JSON.stringify(parsedJson, null, 2);
+              }
+            } catch (e) {
+              console.log('ℹ️ Opening Message: Response is not JSON, displaying as text');
+            }
             
             setChatMessages([{
               id: 'opening',
-              text: result,
+              text: displayText,
+              timestamp: new Date(),
+              isUser: false
+            }]);
+          } else {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('❌ Opening Message: Error response:', errorData);
+            // Fallback to simple greeting
+            setChatMessages([{
+              id: 'opening',
+              text: `Hello, I am ${advisorName}.`,
               timestamp: new Date(),
               isUser: false
             }]);
           }
         } catch (error) {
-          console.error('Error getting opening message:', error);
+          console.error('❌ Opening Message: Exception:', error);
           // Fallback to simple greeting
           setChatMessages([{
             id: 'opening',
@@ -134,7 +173,7 @@ export default function BusinessTaxonomy() {
       
       sendOpeningMessage();
     }
-  }, [systemPrompt, advisorName, temperature, topP, maxOutputTokens, chatMessages.length]);
+  }, [systemPrompt, advisorName, model, responseFormat, temperature, topP, maxOutputTokens, frequencyPenalty, presencePenalty, chatMessages.length]);
   
   const loadingMessages = [
     "Analyzing semantic intent…",
@@ -505,6 +544,7 @@ export default function BusinessTaxonomy() {
 
       const payload = {
         model: model,
+        response_format: { type: responseFormat },
         temperature: temperature,
         top_p: topP,
         max_tokens: maxOutputTokens,
@@ -512,6 +552,13 @@ export default function BusinessTaxonomy() {
         presence_penalty: presencePenalty,
         messages: messages
       };
+      
+      console.log('📤 Frontend: Sending payload to /api/openai/chat:', {
+        model: payload.model,
+        messageCount: payload.messages.length,
+        temperature: payload.temperature,
+        max_tokens: payload.max_tokens
+      });
       
       const response = await fetch('/api/openai/chat', {
         method: 'POST',
@@ -521,26 +568,55 @@ export default function BusinessTaxonomy() {
         body: JSON.stringify(payload)
       });
       
+      console.log('📥 Frontend: Response status:', response.status, response.statusText);
+      
       if (response.ok) {
         const data = await response.json();
-        const result = data.response || 'No response received';
+        console.log('📥 Frontend: Response data:', data);
+        let result = data.response || 'No response received';
+        
+        console.log('✅ Frontend: Got response, type:', typeof result, ', length:', result?.length || 0);
+        
+        // If the response is JSON, try to parse and format it nicely
+        let displayText = result;
+        let parsedJson = null;
+        
+        try {
+          if (typeof result === 'string' && result.trim().startsWith('{')) {
+            parsedJson = JSON.parse(result);
+            console.log('✅ Frontend: Successfully parsed JSON response');
+            
+            // Format JSON for display
+            displayText = JSON.stringify(parsedJson, null, 2);
+            
+            // Also extract classification data
+            if (parsedJson.classification) {
+              setExtractedClassification(parsedJson);
+            }
+          }
+        } catch (e) {
+          console.log('ℹ️ Frontend: Response is not JSON, displaying as text');
+        }
         
         const advisorMessage = {
           id: (Date.now() + 1).toString(),
-          text: result,
+          text: displayText,
           timestamp: new Date(),
           isUser: false
         };
         
         setChatMessages(prev => [...prev, advisorMessage]);
         
-        // Try to extract business classification JSON from the response
-        const classificationData = extractClassificationData(result);
-        if (classificationData) {
-          setExtractedClassification(classificationData);
+        // Try to extract business classification JSON from the response (legacy check)
+        if (!parsedJson) {
+          const classificationData = extractClassificationData(result);
+          if (classificationData) {
+            setExtractedClassification(classificationData);
+          }
         }
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Frontend: Error response:', errorData);
         const errorMessage = {
           id: (Date.now() + 1).toString(),
           text: `Error: ${response.status} - ${errorData.error || 'Failed to get response'}`,
@@ -550,7 +626,7 @@ export default function BusinessTaxonomy() {
         setChatMessages(prev => [...prev, errorMessage]);
       }
     } catch (error) {
-      console.error('Error calling API:', error);
+      console.error('❌ Frontend: Exception in handleSendMessage:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const errorMsg = {
         id: (Date.now() + 1).toString(),
@@ -681,6 +757,7 @@ export default function BusinessTaxonomy() {
 
     return {
       model: model,
+      response_format: { type: responseFormat },
       temperature: temperature,
       top_p: topP,
       max_tokens: maxOutputTokens,
@@ -960,7 +1037,11 @@ export default function BusinessTaxonomy() {
                       className="max-h-[32rem] overflow-y-auto p-3 space-y-3"
                       style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                     >
-                  {chatMessages.map((message) => (
+                  {chatMessages.map((message) => {
+                    // Check if message is JSON
+                    const isJson = message.text.trim().startsWith('{') && message.text.includes('"');
+                    
+                    return (
                     <div
                       key={message.id}
                       className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
@@ -972,16 +1053,23 @@ export default function BusinessTaxonomy() {
                             : 'bg-gray-100 text-gray-800 rounded-bl-sm'
                         }`}
                       >
-                        <div 
-                          className="whitespace-pre-wrap"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
-                        />
+                        {isJson && !message.isUser ? (
+                          <pre className="whitespace-pre-wrap overflow-x-auto text-xs font-mono">
+                            {message.text}
+                          </pre>
+                        ) : (
+                          <div 
+                            className="whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
+                          />
+                        )}
                         <div className={`text-xs mt-1 ${message.isUser ? 'text-blue-100' : 'text-gray-500'}`}>
                           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                   
                   {/* Typing indicator */}
                   {isTypingResponse && (
@@ -1253,6 +1341,28 @@ export default function BusinessTaxonomy() {
                       {modelsByLlm[llm]?.map(modelOption => (
                         <button key={modelOption} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setModel(modelOption)}>
                           {modelOption}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Response Format */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Response Format</label>
+                <div className="relative group">
+                  <button type="button" className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-black hover:text-gray-800 border border-gray-300 rounded-md hover:border-gray-400 transition-all">
+                    <svg className="w-4 h-4 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>{responseFormat === 'json_object' ? 'type: json_object' : `type: ${responseFormat}`}</span>
+                  </button>
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="py-2 max-h-64 overflow-auto">
+                      {(['json_object', 'text', 'xml'] as const).map(fmt => (
+                        <button key={fmt} type="button" className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors" onClick={() => setResponseFormat(fmt)}>
+                          {fmt === 'json_object' ? 'type: json_object' : `type: ${fmt}`}
                         </button>
                       ))}
                     </div>
