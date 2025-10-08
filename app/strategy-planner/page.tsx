@@ -28,7 +28,7 @@ export default function StrategyPlanner() {
   const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, timestamp: Date, isUser: boolean}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [isTypingResponse, setIsTypingResponse] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isInputsPanelBlinking, setIsInputsPanelBlinking] = useState(false);
   const [isOutputsPanelBlinking, setIsOutputsPanelBlinking] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -331,18 +331,20 @@ export default function StrategyPlanner() {
     setIsTypingResponse(true);
 
     try {
-      // Build payload with current user message
-      const payload = buildPayload();
-      // Add or update the user message in the payload
-      const userMessageIndex = payload.messages.findIndex(m => m.role === 'user');
-      if (userMessageIndex >= 0) {
-        payload.messages[userMessageIndex].content = userMessageText;
-      } else {
-        payload.messages.push({
-          role: 'user',
-          content: userMessageText
-        });
-      }
+      // Build chat payload: system + history + current user message
+      const messages = [
+        ...(systemPrompt.trim() ? [{ role: 'system', content: systemPrompt.trim() }] : []),
+        ...chatMessages.map(m => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })),
+        { role: 'user', content: userMessageText }
+      ];
+
+      const payload = {
+        model: model,
+        temperature: temperature,
+        top_p: topP,
+        max_tokens: maxOutputTokens,
+        messages
+      };
 
       // Make actual API call
       const response = await fetch('/api/openai/chat', {
@@ -682,7 +684,6 @@ ${pageText}`;
     return {
       llm: llm,
       model: model,
-      response_format: { type: responseFormat },
       temperature: temperature,
       top_p: topP,
       max_tokens: maxOutputTokens,
@@ -701,23 +702,51 @@ ${pageText}`;
             style={{ width: outputsExpanded ? "0%" : "40%", transition: "width 200ms ease", pointerEvents: outputsExpanded ? "none" : "auto" }}
           >
             <div className={`bg-white rounded-md border border-gray-200 ${outputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200 ${isInputsPanelBlinking ? "nb-anim-inputs-panel-blink" : ""}`}>
-              <button
-                type="button"
-                aria-label="Toggle Inputs visibility"
-                aria-expanded={!inputsCollapsed}
-                onClick={() => setInputsCollapsed((v) => !v)}
-                className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-left hover:bg-gray-200 transition-colors min-h-[52px]"
+              <div
+                className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center justify-between hover:bg-gray-200 transition-colors min-h-[52px] cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  const clickX = e.clientX - rect.left;
+                  const clickedLeftHalf = clickX < rect.width / 2;
+                  if (clickedLeftHalf) {
+                    setInputsCollapsed((v) => !v);
+                  } else {
+                    setOutputsExpanded(false);
+                    setInputsExpanded((v) => !v);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setInputsExpanded((v) => !v);
+                    setOutputsExpanded(false);
+                  }
+                }}
               >
-                <svg
-                  className={`w-4 h-4 transform transition-transform ${inputsCollapsed ? "" : "rotate-90"}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                <h2 className="text-sm font-medium text-gray-900">Inputs Panel</h2>
-              </button>
+                <div className="flex items-center gap-2 text-left select-none">
+                  <svg
+                    className={`w-4 h-4 transform transition-transform ${inputsCollapsed ? "" : "rotate-90"}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <h2 className="text-sm font-medium text-gray-900">Inputs Panel</h2>
+                </div>
+                <div className="flex items-center select-none">
+                  <svg
+                    className={`w-4 h-4 transform transition-transform ${inputsExpanded ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
               <div
                 className="overflow-hidden"
                 style={{

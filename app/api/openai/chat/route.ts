@@ -9,6 +9,8 @@ export async function POST(request: NextRequest) {
     console.log('🟢 Chat API: Request body keys:', Object.keys(body));
     console.log('🟢 Chat API: Body contains messages?', body.messages ? 'YES' : 'NO');
     console.log('🟢 Chat API: Body.messages is array?', Array.isArray(body.messages) ? 'YES' : 'NO');
+    console.log('🟢 Chat API: Body contains input?', body.input ? 'YES' : 'NO');
+    console.log('🟢 Chat API: Body.input is array?', Array.isArray(body.input) ? 'YES' : 'NO');
     
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
@@ -18,7 +20,77 @@ export async function POST(request: NextRequest) {
 
     console.log('🟢 Chat API: OpenAI API key found');
 
-    // Check if this is a direct OpenAI payload (from Model Builder)
+    // New: If using Responses API payload (input array), forward to /v1/responses
+    if (body.input && Array.isArray(body.input)) {
+      console.log('🟢 Chat API: Responses payload detected, input count:', body.input.length);
+
+      const model = body.model || 'gpt-4o';
+      const maxOutputTokens = body.max_output_tokens || body.maxTokens || body.max_tokens || 2000;
+
+      const responsesRequest: any = {
+        model,
+        input: body.input,
+      };
+      // Map common parameters
+      if (body.temperature !== undefined) responsesRequest.temperature = body.temperature;
+      if (body.top_p !== undefined) responsesRequest.top_p = body.top_p;
+      if (body.frequency_penalty !== undefined) responsesRequest.frequency_penalty = body.frequency_penalty;
+      if (body.presence_penalty !== undefined) responsesRequest.presence_penalty = body.presence_penalty;
+      if (body.store !== undefined) responsesRequest.store = body.store;
+      responsesRequest.max_output_tokens = maxOutputTokens;
+      if (body.response_format) responsesRequest.response_format = body.response_format;
+
+      console.log('🟢 Chat API: Making Responses request with:', {
+        model: responsesRequest.model,
+        inputCount: Array.isArray(responsesRequest.input) ? responsesRequest.input.length : 1,
+        temperature: responsesRequest.temperature,
+        max_output_tokens: responsesRequest.max_output_tokens,
+        hasResponseFormat: Boolean(responsesRequest.response_format)
+      });
+
+      const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(responsesRequest)
+      });
+
+      console.log('🟢 Chat API: Responses API status:', openaiResponse.status, openaiResponse.statusText);
+
+      if (!openaiResponse.ok) {
+        const errorData = await openaiResponse.json().catch(() => ({}));
+        console.error('❌ Chat API: Responses API error:', {
+          status: openaiResponse.status,
+          statusText: openaiResponse.statusText,
+          errorData,
+          requestBody: responsesRequest
+        });
+        return NextResponse.json(
+          { 
+            error: 'OpenAI Responses API error', 
+            details: errorData.error?.message || 'Unknown error',
+            status: openaiResponse.status,
+            requestBody: responsesRequest
+          },
+          { status: openaiResponse.status }
+        );
+      }
+
+      const openaiData = await openaiResponse.json();
+      // Try to extract unified response text
+      const responseText = openaiData.output_text || openaiData.choices?.[0]?.message?.content || '';
+      console.log('✅ Chat API: Responses data received. output_text length:', (openaiData.output_text || '').length || 0);
+
+      return NextResponse.json({
+        response: responseText,
+        success: true,
+        fullResponse: openaiData
+      });
+    }
+
+    // Check if this is a direct OpenAI payload (from Model Builder) using chat.completions
     if (body.messages && Array.isArray(body.messages)) {
       console.log('🟢 Chat API: Direct OpenAI payload detected, messages count:', body.messages.length);
       

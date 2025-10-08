@@ -27,7 +27,7 @@ export default function DataMapperPage() {
   const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, timestamp: Date, isUser: boolean}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [isTypingResponse, setIsTypingResponse] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isInputsPanelBlinking, setIsInputsPanelBlinking] = useState(false);
   const [isOutputsPanelBlinking, setIsOutputsPanelBlinking] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -58,6 +58,13 @@ export default function DataMapperPage() {
   const [preflightPayload, setPreflightPayload] = useState<any>(null);
   const [callResponse, setCallResponse] = useState<any>(null);
   const [isCallingApi, setIsCallingApi] = useState(false);
+  const [isChatDebugOpen, setIsChatDebugOpen] = useState(false);
+  const [copyChatDebugButtonText, setCopyChatDebugButtonText] = useState('Copy');
+  const [isSentPayloadOpen, setIsSentPayloadOpen] = useState(false);
+  const [copySentPayloadButtonText, setCopySentPayloadButtonText] = useState('Copy');
+  const [lastSentPayload, setLastSentPayload] = useState<any>(null);
+  const [finalOutput, setFinalOutput] = useState<any>(null);
+  const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
 
   // Model options based on LLM
   const modelsByLlm: Record<string, string[]> = {
@@ -331,7 +338,7 @@ export default function DataMapperPage() {
     setIsTypingResponse(true);
     
     try {
-      // Build payload with the new message
+      // Build Responses API payload with the new message
       const thresholdDecimal = completionThreshold / 100;
       const selectedStructure = structures.find(s => s.id === selectedStructureId);
       const schema = selectedStructure?.data?.schema || {};
@@ -340,25 +347,32 @@ export default function DataMapperPage() {
       processedSystemPrompt = processedSystemPrompt.replace(/\{\{THRESHOLD\}\}/g, String(thresholdDecimal));
       processedSystemPrompt = processedSystemPrompt.replace(/\{\{BUSINESS_PLAN_STRUCTURE\}\}/g, JSON.stringify(schema, null, 2));
       
-      const payload = {
+      // Build messages: system + prior chat + new user message
+      const messages = [
+        { role: 'system', content: processedSystemPrompt },
+        ...chatMessages.map(m => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })),
+        { role: 'user', content: userMessage.text }
+      ];
+
+      const isFinalize = /\[\[FINALIZE\]\]/i.test(userMessage.text) || /\b(proceed|build|finalize)\b/i.test(userMessage.text);
+
+      const payload: any = {
         model: model,
-        response_format: { type: responseFormat },
         temperature: temperature,
         max_tokens: maxOutputTokens,
         top_p: topP,
-        frequency_penalty: frequencyPenalty,
-        presence_penalty: presencePenalty,
-        messages: [
-          { role: 'system', content: processedSystemPrompt },
-          { role: 'user', content: userMessage.text }
-        ]
+        // frequency_penalty: frequencyPenalty,
+        // presence_penalty: presencePenalty,
+        messages
       };
+      if (isFinalize) payload.response_format = { type: 'json_object' };
       
+      setLastSentPayload(payload);
       console.log('=== DEBUG: Sending Payload ===');
       console.log(JSON.stringify(payload, null, 2));
       console.log('============================');
       
-      // Call API
+      // Call API via backend (supports Responses API)
       const response = await fetch('/api/openai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -381,12 +395,28 @@ export default function DataMapperPage() {
 
       const result = await response.json();
       
-      // Parse the response
-      let responseText = '';
-      if (result.output_text) {
-        responseText = result.output_text;
-      } else if (result.choices?.[0]?.message?.content) {
-        responseText = result.choices[0].message.content;
+      // Parse the response (Responses API or Chat API)
+      let responseText = result.response || result.output_text || result.choices?.[0]?.message?.content || '';
+      
+      // If finalize requested and JSON returned, try to pretty print
+      if (isFinalize && typeof responseText === 'string') {
+        try {
+          const parsed = JSON.parse(responseText);
+          responseText = JSON.stringify(parsed, null, 2);
+          setFinalOutput(parsed);
+        } catch {}
+      }
+      // If not explicitly finalize, still attempt to parse JSON and render when it matches expected schema
+      if (!isFinalize && typeof responseText === 'string') {
+        const looksJson = responseText.trim().startsWith('{') && responseText.trim().endsWith('}');
+        if (looksJson) {
+          try {
+            const parsedMaybe = JSON.parse(responseText);
+            if (parsedMaybe && typeof parsedMaybe === 'object' && Array.isArray(parsedMaybe.business_plan)) {
+              setFinalOutput(parsedMaybe);
+            }
+          } catch {}
+        }
       }
       
       const advisorMessage = {
@@ -423,9 +453,9 @@ export default function DataMapperPage() {
     }
   }
 
-  // Debug: Copy all chat details for debugging
-  function handleCopyChatDebug() {
-    const debugInfo = {
+  // Build chat debug info
+  function buildChatDebugInfo() {
+    return {
       timestamp: new Date().toISOString(),
       chatMessages: chatMessages,
       selectedSystemPrompt: systemPrompts.find(p => p.id === selectedSystemPromptId)?.data?.name || 'None',
@@ -448,14 +478,6 @@ export default function DataMapperPage() {
       isCallingApi,
       isTypingResponse
     };
-
-    const debugText = JSON.stringify(debugInfo, null, 2);
-    navigator.clipboard.writeText(debugText).then(() => {
-      alert('Chat debug info copied to clipboard!');
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      alert('Failed to copy. See console for details.');
-    });
   }
 
   function startTyping(text: string) {
@@ -490,6 +512,18 @@ export default function DataMapperPage() {
         setIsOutputsPanelBlinking(false);
       }, 1600);
     }, 800); // 800ms delay before starting
+  }
+
+  function handleInputsHeaderClick(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickedLeftHalf = clickX < rect.width / 2;
+    if (clickedLeftHalf) {
+      setInputsCollapsed((v) => !v);
+    } else {
+      setInputsExpanded((v) => !v);
+      if (!inputsExpanded) setOutputsExpanded(false);
+    }
   }
 
   function handleShowHowItWorks() {
@@ -632,15 +666,15 @@ export default function DataMapperPage() {
     const lastUserMessage = chatMessages.filter(m => m.isUser).slice(-1)[0];
     const userContent = lastUserMessage?.text || '';
 
-    // 5. Build payload
+    // 5. Build payload (Chat Completions style for preview)
     const payload = {
       model: model,
       response_format: { type: responseFormat },
       temperature: temperature,
       max_tokens: maxOutputTokens,
       top_p: topP,
-      frequency_penalty: frequencyPenalty,
-      presence_penalty: presencePenalty,
+      // frequency_penalty: frequencyPenalty,
+      // presence_penalty: presencePenalty,
       messages: [
         { role: 'system', content: processedSystemPrompt },
         { role: 'user', content: userContent }
@@ -665,7 +699,7 @@ export default function DataMapperPage() {
       console.log(JSON.stringify(preflightPayload, null, 2));
       console.log('============================');
 
-      // Send to OpenAI API
+      // Send to OpenAI API (Responses API)
       const response = await fetch('/api/openai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -690,23 +724,13 @@ export default function DataMapperPage() {
       
       // Parse the output_text if it's JSON
       let parsedOutput = result;
-      let responseText = '';
+      let responseText = result.response || result.output_text || result.choices?.[0]?.message?.content || '';
       
-      if (result.output_text) {
+      if (typeof responseText === 'string') {
         try {
-          parsedOutput = JSON.parse(result.output_text);
-          responseText = result.output_text;
-        } catch (e) {
-          parsedOutput = result.output_text;
-          responseText = result.output_text;
-        }
-      } else if (result.choices?.[0]?.message?.content) {
-        try {
-          parsedOutput = JSON.parse(result.choices[0].message.content);
-          responseText = result.choices[0].message.content;
-        } catch (e) {
-          parsedOutput = result.choices[0].message.content;
-          responseText = result.choices[0].message.content;
+          parsedOutput = JSON.parse(responseText);
+        } catch {
+          parsedOutput = responseText;
         }
       }
 
@@ -758,13 +782,22 @@ export default function DataMapperPage() {
             }}
           >
             <div className={`bg-white rounded-md border border-gray-200 ${outputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200 ${isInputsPanelBlinking ? "nb-anim-inputs-panel-blink" : ""}`}>
-              <div className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center justify-between hover:bg-gray-200 transition-colors min-h-[52px]">
-              <button
-                type="button"
-                aria-label="Toggle Inputs visibility"
-                aria-expanded={!inputsCollapsed}
-                onClick={() => setInputsCollapsed((v) => !v)}
-                  className="flex items-center gap-2 text-left"
+              <div 
+                className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center justify-between hover:bg-gray-200 transition-colors min-h-[52px] cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={handleInputsHeaderClick}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    // Treat keyboard as right-half action (expand/collapse width)
+                    setInputsExpanded((v) => !v);
+                    if (!inputsExpanded) setOutputsExpanded(false);
+                  }
+                }}
+              >
+              <div
+                  className="flex items-center gap-2 text-left select-none"
               >
                 <svg
                   className={`w-4 h-4 transform transition-transform ${inputsCollapsed ? "" : "rotate-90"}`}
@@ -775,16 +808,9 @@ export default function DataMapperPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
                 <h2 className="text-sm font-medium text-gray-900">Inputs Panel</h2>
-              </button>
-                <button
-                  type="button"
-                  aria-label="Toggle Inputs width"
-                  aria-expanded={inputsExpanded}
-                  onClick={() => {
-                    setInputsExpanded((v) => !v);
-                    if (!inputsExpanded) setOutputsExpanded(false); // Collapse outputs when expanding inputs
-                  }}
-                  className="flex items-center"
+              </div>
+                <div
+                  className="flex items-center select-none"
                 >
                   <svg
                     className={`w-4 h-4 transform transition-transform ${inputsExpanded ? "rotate-180" : ""}`}
@@ -794,7 +820,7 @@ export default function DataMapperPage() {
                   >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                  </button>
+                  </div>
               </div>
               <div
                 className="overflow-hidden"
@@ -919,31 +945,11 @@ export default function DataMapperPage() {
 
                 {/* Separator */}
                 <div className="border-t border-gray-200 my-3"></div>
-
-                {/* Preflight and Call (match Model Builder styles) */}
-                <div className="flex gap-2">
-                <button
-                  type="button"
-                    className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={handlePreflight}
-                    disabled={isCallingApi}
-                  >
-                    Preflight
-                  </button>
-                  <button
-                    type="button"
-                    className="flex-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={handleCall}
-                    disabled={!preflightPayload || isCallingApi}
-                  >
-                    {isCallingApi ? 'Calling...' : 'Call'}
-                </button>
-            </div>
           </div>
 
                 {/* Chat Box - expands to right when inputsExpanded is true */}
                 <div className={`${inputsExpanded ? 'flex-1' : 'mt-3'}`}>
-                <div className={`border border-gray-200 rounded-lg bg-white shadow-sm ${inputsExpanded && !isChatCollapsed ? 'h-full' : ''}`} style={inputsExpanded && !isChatCollapsed ? { height: 'calc(100vh - 120px)' } : {}}>
+                <div className={`border border-gray-200 rounded-lg bg-white shadow-sm`}>
                   {/* Chat Header */}
                   <div 
                     className={`px-3 py-1.5 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors ${isChatCollapsed ? 'rounded-md' : 'border-b border-gray-100 rounded-t-md'}`}
@@ -969,7 +975,19 @@ export default function DataMapperPage() {
                   <button
                     onClick={(e) => {
                             e.stopPropagation();
-                            handleCopyChatDebug();
+                            setIsSentPayloadOpen(true);
+                    }}
+                          className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+                          title="View last sent payload"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10l18 4-8 3-2 4-2-6-6-5z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                            e.stopPropagation();
+                            setIsChatDebugOpen(true);
                     }}
                           className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors font-mono"
                           title="Copy chat debug info"
@@ -987,10 +1005,10 @@ export default function DataMapperPage() {
                       {/* Chat Messages */}
                       <div 
                         ref={chatContainerRef}
-                        className={`${inputsExpanded ? 'h-full' : 'max-h-64'} overflow-y-auto p-3 space-y-3`}
+                        className={`overflow-y-auto p-3 space-y-3 ${inputsExpanded ? '' : 'max-h-64'}`}
                         style={{ 
                           fontFamily: 'Inter, system-ui, sans-serif',
-                          ...(inputsExpanded ? { height: 'calc(100vh - 220px)' } : {})
+                          ...(inputsExpanded ? { maxHeight: '60vh' } : {})
                         }}
                       >
                     {chatMessages.map((message) => (
@@ -1160,19 +1178,85 @@ export default function DataMapperPage() {
                       </div>
                           )}
 
-                  {!isCallingApi && callResponse && (
+                  {!isCallingApi && (finalOutput || callResponse) && (
                     <div className="mt-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
-                        <span className="text-sm font-medium text-gray-900">API Response:</span>
+                      {finalOutput ? (
+                        <>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                            <span className="text-sm font-medium text-gray-900">Business Plan Output</span>
+                          </div>
+                          <div className="space-y-2">
+                            {(Array.isArray(finalOutput?.business_plan) ? finalOutput.business_plan : []).map((topic: any, idx: number) => {
+                              const topicKey = String(topic?.topic || `Topic ${idx + 1}`);
+                              const isOpen = Boolean(expandedTopics[topicKey]);
+                              return (
+                                <div key={topicKey} className="border border-gray-200 rounded-md bg-white">
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left flex items-center justify-between hover:bg-gray-50"
+                                    onClick={() => setExpandedTopics(prev => ({ ...prev, [topicKey]: !isOpen }))}
+                                  >
+                                    <span className="text-sm font-medium text-gray-900">{topicKey}</span>
+                                    <svg className={`w-4 h-4 text-gray-600 transform transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </button>
+                                  <div className="overflow-hidden" style={{ maxHeight: isOpen ? 3000 : 0, transition: 'max-height 250ms ease' }}>
+                                    <div className="px-3 pb-3 space-y-2">
+                                      {(Array.isArray(topic?.subtopics) ? topic.subtopics : []).map((st: any, i: number) => {
+                                        const isAi = String(st?.source_tag || '').toLowerCase() === 'ai';
+                                        return (
+                                          <div key={`${topicKey}-${i}`} className={`rounded-md border px-3 py-2 ${isAi ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="text-xs font-medium text-gray-700">{String(st?.name || 'Untitled')}</span>
+                                              <span className={`text-[10px] px-2 py-0.5 rounded ${isAi ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>{isAi ? 'AI' : 'USER'}</span>
+                                            </div>
+                                            <div className="text-sm text-gray-900 whitespace-pre-wrap mt-1">{String(st?.content || '')}</div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="grid md:grid-cols-2 gap-2 mt-3">
+                            <div className="border border-gray-200 rounded-md bg-white">
+                              <div className="px-3 py-2 border-b border-gray-100 text-sm font-medium text-gray-900">Classification</div>
+                              <div className="px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap">{JSON.stringify(finalOutput?.classification ?? {}, null, 2)}</div>
+                            </div>
+                            <div className="border border-gray-200 rounded-md bg-white">
+                              <div className="px-3 py-2 border-b border-gray-100 text-sm font-medium text-gray-900">Completeness</div>
+                              <div className="px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap">{JSON.stringify(finalOutput?.completeness ?? {}, null, 2)}</div>
+                            </div>
+                            <div className="border border-gray-200 rounded-md bg-white">
+                              <div className="px-3 py-2 border-b border-gray-100 text-sm font-medium text-gray-900">Metadata</div>
+                              <div className="px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap">{JSON.stringify(finalOutput?.metadata ?? {}, null, 2)}</div>
+                            </div>
+                            <div className="border border-gray-200 rounded-md bg-white">
+                              <div className="px-3 py-2 border-b border-gray-100 text-sm font-medium text-gray-900">Unmapped & Next Action</div>
+                              <div className="px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap">
+                                <div><span className="font-semibold">unmapped:</span> {JSON.stringify(finalOutput?.unmapped ?? [], null, 2)}</div>
+                                <div className="mt-2"><span className="font-semibold">next_action:</span> {JSON.stringify(finalOutput?.next_action ?? null)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                            <span className="text-sm font-medium text-gray-900">API Response:</span>
+                          </div>
+                          <div className="bg-gray-50 border border-gray-200 rounded-md p-4 max-h-96 overflow-auto">
+                            <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">{JSON.stringify(callResponse, null, 2)}</pre>
+                          </div>
+                        </>
+                      )}
                     </div>
-                      <div className="bg-gray-50 border border-gray-200 rounded-md p-4 max-h-96 overflow-auto">
-                        <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">
-                          {JSON.stringify(callResponse, null, 2)}
-                        </pre>
-                  </div>
-                  </div>
-                )}
+                  )}
               </div>
                           )}
               {showHowItWorks && (
@@ -1540,6 +1624,93 @@ export default function DataMapperPage() {
             <div className="p-4 flex-1 overflow-auto">
               <pre className="text-xs bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-gray-900 font-mono">
                 {JSON.stringify(preflightPayload, null, 2)}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Debug Modal - centered */}
+      {isChatDebugOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div 
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl flex flex-col"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif', width: '72rem', maxWidth: '90vw', aspectRatio: '16/9' }}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">Chat Debug</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(JSON.stringify(buildChatDebugInfo(), null, 2));
+                      setCopyChatDebugButtonText('Copied!');
+                      setTimeout(() => setCopyChatDebugButtonText('Copy'), 2000);
+                    } catch (e) {
+                      setCopyChatDebugButtonText('Failed');
+                      setTimeout(() => setCopyChatDebugButtonText('Copy'), 2000);
+                    }
+                  }}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    copyChatDebugButtonText === 'Copied!'
+                      ? 'bg-green-600 text-white'
+                      : copyChatDebugButtonText === 'Failed'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {copyChatDebugButtonText}
+                </button>
+                <button onClick={() => setIsChatDebugOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+              </div>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              <pre className="text-xs bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-gray-900 font-mono">
+                {JSON.stringify(buildChatDebugInfo(), null, 2)}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sent Payload Modal - centered */}
+      {isSentPayloadOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div 
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto bg-white border border-gray-200 rounded-md shadow-xl flex flex-col"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif', width: '72rem', maxWidth: '90vw', aspectRatio: '16/9' }}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+              <h3 className="text-sm text-gray-900">Last Sent Payload</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const text = JSON.stringify(lastSentPayload ?? { info: 'No payload sent yet' }, null, 2);
+                      await navigator.clipboard.writeText(text);
+                      setCopySentPayloadButtonText('Copied!');
+                      setTimeout(() => setCopySentPayloadButtonText('Copy'), 2000);
+                    } catch (e) {
+                      setCopySentPayloadButtonText('Failed');
+                      setTimeout(() => setCopySentPayloadButtonText('Copy'), 2000);
+                    }
+                  }}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    copySentPayloadButtonText === 'Copied!'
+                      ? 'bg-green-600 text-white'
+                      : copySentPayloadButtonText === 'Failed'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {copySentPayloadButtonText}
+                </button>
+                <button onClick={() => setIsSentPayloadOpen(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+              </div>
+            </div>
+            <div className="p-4 flex-1 overflow-auto">
+              <pre className="text-xs bg-gray-50 p-4 rounded-md whitespace-pre-wrap text-gray-900 font-mono">
+                {JSON.stringify(lastSentPayload ?? { info: 'No payload sent yet' }, null, 2)}
               </pre>
             </div>
           </div>

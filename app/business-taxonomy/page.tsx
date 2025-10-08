@@ -27,7 +27,7 @@ export default function BusinessTaxonomy() {
   const [chatMessages, setChatMessages] = useState<Array<{id: string, text: string, timestamp: Date, isUser: boolean}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [isTypingResponse, setIsTypingResponse] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
   
@@ -86,7 +86,6 @@ export default function BusinessTaxonomy() {
           console.log('🚀 Opening Message: Starting to send opening message');
           const payload = {
             model: model,
-            response_format: { type: responseFormat },
             temperature: temperature,
             top_p: topP,
             max_tokens: maxOutputTokens,
@@ -516,6 +515,13 @@ export default function BusinessTaxonomy() {
     setChatInput('');
     setIsTypingResponse(true);
     
+    // If the user explicitly requests finalization, do the finalize flow instead
+    if (userMessageText.toUpperCase().includes('[[FINALIZE]]')) {
+      await handleFinalizeWithMessage(userMessageText);
+      setIsTypingResponse(false);
+      return;
+    }
+
     try {
       // Build API payload using chat message as user prompt
       const messages = [];
@@ -544,12 +550,11 @@ export default function BusinessTaxonomy() {
 
       const payload = {
         model: model,
-        response_format: { type: responseFormat },
         temperature: temperature,
         top_p: topP,
         max_tokens: maxOutputTokens,
-        frequency_penalty: frequencyPenalty,
-        presence_penalty: presencePenalty,
+        // frequency_penalty: frequencyPenalty,
+        // presence_penalty: presencePenalty,
         messages: messages
       };
       
@@ -638,6 +643,103 @@ export default function BusinessTaxonomy() {
     } finally {
       setIsTypingResponse(false);
     }
+  }
+
+  // Build full conversation messages with optional final user message
+  function buildConversationMessages(finalUserMessage?: string) {
+    const messages: Array<{ role: string; content: string }> = [];
+    if (systemPrompt.trim()) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    chatMessages.forEach(msg => {
+      messages.push({ role: msg.isUser ? 'user' : 'assistant', content: msg.text });
+    });
+    if (finalUserMessage && finalUserMessage.trim()) {
+      messages.push({ role: 'user', content: finalUserMessage.trim() });
+    }
+    return messages;
+  }
+
+  // Finalize: one more call with response_format json_object and the user's finalize message
+  async function handleFinalizeWithMessage(finalizeMessage: string) {
+    try {
+      const payload = {
+        model: model,
+        temperature: temperature,
+        top_p: topP,
+        max_tokens: maxOutputTokens,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
+        response_format: { type: 'json_object' as const },
+        messages: buildConversationMessages(finalizeMessage)
+      };
+
+      const response = await fetch('/api/openai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorMessage = {
+          id: (Date.now() + 1).toString(),
+          text: `Error: ${response.status} - ${errorData.error || 'Failed to get response'}`,
+          timestamp: new Date(),
+          isUser: false
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+        return;
+      }
+
+      const data = await response.json();
+      let resultText = data.response || data.choices?.[0]?.message?.content || '';
+
+      // Parse JSON and pretty-print
+      let parsed: any = null;
+      try {
+        parsed = typeof resultText === 'string' ? JSON.parse(resultText) : resultText;
+      } catch {
+        // keep as string if not valid JSON
+      }
+
+      if (parsed) {
+        setExtractedClassification(parsed);
+        resultText = JSON.stringify(parsed, null, 2);
+      }
+
+      const assistantMessage = {
+        id: (Date.now() + 2).toString(),
+        text: resultText || 'No response received',
+        timestamp: new Date(),
+        isUser: false
+      };
+      setChatMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const assistantMessage = {
+        id: (Date.now() + 1).toString(),
+        text: `Error: ${errorMsg}`,
+        timestamp: new Date(),
+        isUser: false
+      };
+      setChatMessages(prev => [...prev, assistantMessage]);
+    }
+  }
+
+  async function handleFinalizeClick() {
+    // Add a visible user message to the chat for finalize action
+    const finalizeText = '[[FINALIZE]]';
+    const userMessage = {
+      id: Date.now().toString(),
+      text: finalizeText,
+      timestamp: new Date(),
+      isUser: true
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    setIsTypingResponse(true);
+    await handleFinalizeWithMessage(finalizeText);
+    setIsTypingResponse(false);
   }
 
   function handleChatKeyPress(e: React.KeyboardEvent) {
@@ -761,8 +863,8 @@ export default function BusinessTaxonomy() {
       temperature: temperature,
       top_p: topP,
       max_tokens: maxOutputTokens,
-      frequency_penalty: frequencyPenalty,
-      presence_penalty: presencePenalty,
+      // frequency_penalty: frequencyPenalty,
+      // presence_penalty: presencePenalty,
       messages: messages
     };
   }
@@ -831,12 +933,26 @@ export default function BusinessTaxonomy() {
             style={{ width: outputsExpanded ? "0%" : "25%", transition: "width 200ms ease", pointerEvents: outputsExpanded ? "none" : "auto" }}
           >
           <div className={`bg-white rounded-md border border-gray-200 ${outputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200`}>
-            <button
-              type="button"
-              aria-label="Toggle Inputs visibility"
-              aria-expanded={!inputsCollapsed}
-              onClick={() => setInputsCollapsed((v) => !v)}
-              className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-left hover:bg-gray-200 transition-colors min-h-[52px]"
+            <div
+              className="w-full bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-left hover:bg-gray-200 transition-colors min-h-[52px] cursor-pointer"
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickedLeftHalf = clickX < rect.width / 2;
+                if (clickedLeftHalf) {
+                  setInputsCollapsed((v) => !v);
+                } else {
+                  setOutputsExpanded((v) => !v);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setOutputsExpanded((v) => !v);
+                }
+              }}
             >
               <svg
                 className={`w-4 h-4 transform transition-transform ${inputsCollapsed ? "" : "rotate-90"}`}
@@ -847,7 +963,7 @@ export default function BusinessTaxonomy() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
               <h2 className="text-sm font-medium text-gray-900">Inputs Panel</h2>
-            </button>
+            </div>
             <div
               className="overflow-hidden"
               style={{
@@ -1109,6 +1225,13 @@ export default function BusinessTaxonomy() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                       </svg>
+                    </button>
+                    <button
+                      onClick={handleFinalizeClick}
+                      disabled={isTypingResponse}
+                      className="flex-shrink-0 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Proceed / Build
                     </button>
                   </div>
                 </div>
