@@ -327,7 +327,7 @@ export default function DataMapperPage() {
     if (!chatInput.trim()) return;
     
     const userMessage = {
-      id: Date.now().toString(),
+      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: chatInput.trim(),
       timestamp: new Date(),
       isUser: true
@@ -346,6 +346,14 @@ export default function DataMapperPage() {
       let processedSystemPrompt = systemPrompt;
       processedSystemPrompt = processedSystemPrompt.replace(/\{\{THRESHOLD\}\}/g, String(thresholdDecimal));
       processedSystemPrompt = processedSystemPrompt.replace(/\{\{BUSINESS_PLAN_STRUCTURE\}\}/g, JSON.stringify(schema, null, 2));
+      
+      console.log('=== DEBUG: System Prompt Analysis ===');
+      console.log('Original systemPrompt:', systemPrompt);
+      console.log('Processed systemPrompt:', processedSystemPrompt);
+      console.log('Selected structure:', selectedStructure?.data?.name);
+      console.log('Schema:', schema);
+      console.log('Schema keys:', Object.keys(schema));
+      console.log('============================');
       
       // Build messages: system + prior chat + new user message
       const messages = [
@@ -404,6 +412,26 @@ export default function DataMapperPage() {
           const parsed = JSON.parse(responseText);
           responseText = JSON.stringify(parsed, null, 2);
           setFinalOutput(parsed);
+          console.log('=== DEBUG: Setting finalOutput in finalize mode ===');
+          console.log('Parsed data:', parsed);
+          console.log('business_plan length:', parsed.business_plan?.length);
+          console.log('business_plan content:', parsed.business_plan);
+          if (parsed.business_plan?.length === 0) {
+            console.log('⚠️ WARNING: business_plan array is empty! This might be a prompt or AI response issue.');
+          }
+          console.log('============================');
+          
+          // Show success message in chat instead of auto-expanding panel
+          const topicCount = parsed.business_plan?.length || 0;
+          const successMessage = {
+            id: `success-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: topicCount > 0 
+              ? `✅ Successfully parsed business plan with ${topicCount} topics. Click the "Outputs Panel" button above to view structured results.`
+              : `⚠️ Business plan parsed but contains 0 topics. This might indicate a prompt or AI response issue. Check the system prompt and structure settings.`,
+            timestamp: new Date(),
+            isUser: false
+          };
+          setChatMessages(prev => [...prev, successMessage]);
         } catch {}
       }
       // If not explicitly finalize, still attempt to parse JSON and render when it matches expected schema
@@ -414,19 +442,63 @@ export default function DataMapperPage() {
             const parsedMaybe = JSON.parse(responseText);
             if (parsedMaybe && typeof parsedMaybe === 'object' && Array.isArray(parsedMaybe.business_plan)) {
               setFinalOutput(parsedMaybe);
+              console.log('=== DEBUG: Setting finalOutput in auto mode ===');
+              console.log('Parsed data:', parsedMaybe);
+              console.log('business_plan length:', parsedMaybe.business_plan?.length);
+              console.log('============================');
+              
+              // Show success message in chat instead of auto-expanding panel
+              const successMessage = {
+                id: `success-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text: `✅ Successfully parsed business plan with ${parsedMaybe.business_plan?.length || 0} topics. Click the "Outputs Panel" button above to view structured results.`,
+                timestamp: new Date(),
+                isUser: false
+              };
+              setChatMessages(prev => [...prev, successMessage]);
             }
           } catch {}
         }
       }
       
-      const advisorMessage = {
-        id: (Date.now() + 1).toString(),
-        text: responseText || 'No response received',
-        timestamp: new Date(),
-        isUser: false
-      };
+      // Check if we have structured output by looking at the parsed data directly
+      let hasStructuredOutput = false;
+      let parsedData = null;
       
-      setChatMessages(prev => [...prev, advisorMessage]);
+      // Check if we parsed JSON in finalize mode
+      if (isFinalize && typeof responseText === 'string') {
+        try {
+          parsedData = JSON.parse(responseText);
+          hasStructuredOutput = parsedData && typeof parsedData === 'object' && Array.isArray(parsedData.business_plan);
+        } catch {}
+      }
+      
+      // Check if we parsed JSON in auto mode
+      if (!hasStructuredOutput && !isFinalize && typeof responseText === 'string') {
+        const looksJson = responseText.trim().startsWith('{') && responseText.trim().endsWith('}');
+        if (looksJson) {
+          try {
+            parsedData = JSON.parse(responseText);
+            hasStructuredOutput = parsedData && typeof parsedData === 'object' && Array.isArray(parsedData.business_plan);
+          } catch {}
+        }
+      }
+      
+      console.log('=== DEBUG: Chat Message Condition ===');
+      console.log('hasStructuredOutput:', hasStructuredOutput);
+      console.log('parsedData:', parsedData);
+      console.log('Will add raw response to chat:', !hasStructuredOutput);
+      console.log('============================');
+      
+      if (!hasStructuredOutput) {
+        const advisorMessage = {
+          id: `advisor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: responseText || 'No response received',
+          timestamp: new Date(),
+          isUser: false
+        };
+        
+        setChatMessages(prev => [...prev, advisorMessage]);
+      }
       
     } catch (error) {
       console.error('=== DEBUG: Error Details ===');
@@ -435,7 +507,7 @@ export default function DataMapperPage() {
       
       const errorText = String(error);
       const errorMessage = {
-        id: (Date.now() + 1).toString(),
+        id: `error-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         text: `🔴 ERROR:\n\n${errorText}\n\n💡 Check browser console for full payload details.`,
         timestamp: new Date(),
         isUser: false
@@ -738,7 +810,7 @@ export default function DataMapperPage() {
       
       // Add response to chat as advisor message
       const advisorMessage = {
-        id: Date.now().toString(),
+        id: `preflight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         text: typeof responseText === 'string' ? responseText : JSON.stringify(parsedOutput, null, 2),
         timestamp: new Date(),
         isUser: false
@@ -756,7 +828,7 @@ export default function DataMapperPage() {
       // Add error to chat
       const errorText = String(error);
       const errorMessage = {
-        id: Date.now().toString(),
+        id: `preflight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         text: `🔴 ERROR:\n\n${errorText}\n\n💡 Check browser console for full payload details.`,
         timestamp: new Date(),
         isUser: false
@@ -1133,53 +1205,20 @@ export default function DataMapperPage() {
                           </button>
                                               </div>
                                         </div>
-{(showHowItWorks || isSimulating || simulateResult || callResponse || isCallingApi) && (
-              <div className="p-4">
-                  {showHowItWorks && (
-                    <div>
-                      <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
-                        {typedText}
-                        {isTyping && <span className="inline-block w-2 h-4 bg-gray-400 ml-1 align-baseline animate-pulse" />}
-                                      </div>
-                                  </div>
-                  )}
-
-                  {/* Simulation states */}
-                  {isSimulating && (
-                    <div className="my-3 flex justify-center">
-                      <div className="w-1/2">
-                        <div className="border border-gray-200 bg-gray-50 rounded-md h-9 px-4 flex items-center justify-center overflow-hidden">
-                          <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
-                            {loadingMessages[loadingMessageIndex]}
-                            </div>
-                        </div>
-                      </div>
-                        </div>
-                        )}
-                  {!isSimulating && simulateResult && (
-                    <div className="mt-3 text-sm text-gray-800">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
-                        <span>Simulation complete in {Math.round(simulateResult.elapsedMs)} ms</span>
-                        </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
-                      </div>
-                  </div>
-                )}
-
-                  {/* API Call States */}
-                  {isCallingApi && (
-                    <div className="my-3">
-                      <div className="text-sm text-gray-700 flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span>Calling API...</span>
-                        </div>
-                      </div>
-                          )}
-
+{/* Business Plan Output - Always show when available */}
                   {!isCallingApi && (finalOutput || callResponse) && (
                     <div className="mt-3">
+                      {(() => {
+                        console.log('=== DEBUG: Display Condition Check ===');
+                        console.log('isCallingApi:', isCallingApi);
+                        console.log('finalOutput exists:', !!finalOutput);
+                        console.log('callResponse exists:', !!callResponse);
+                        console.log('finalOutput content:', finalOutput);
+                        console.log('finalOutput.business_plan:', finalOutput?.business_plan);
+                        console.log('business_plan is array:', Array.isArray(finalOutput?.business_plan));
+                        console.log('============================');
+                        return null;
+                      })()}
                       {finalOutput ? (
                         <>
                           <div className="flex items-center gap-2 mb-2">
@@ -1187,6 +1226,15 @@ export default function DataMapperPage() {
                             <span className="text-sm font-medium text-gray-900">Business Plan Output</span>
                           </div>
                           <div className="space-y-2">
+                            {(() => {
+                              console.log('=== DEBUG: Business Plan Rendering ===');
+                              console.log('finalOutput:', finalOutput);
+                              console.log('business_plan:', finalOutput?.business_plan);
+                              console.log('is array:', Array.isArray(finalOutput?.business_plan));
+                              console.log('length:', finalOutput?.business_plan?.length);
+                              console.log('============================');
+                              return null;
+                            })()}
                             {(Array.isArray(finalOutput?.business_plan) ? finalOutput.business_plan : []).map((topic: any, idx: number) => {
                               const topicKey = String(topic?.topic || `Topic ${idx + 1}`);
                               const isOpen = Boolean(expandedTopics[topicKey]);
@@ -1257,8 +1305,45 @@ export default function DataMapperPage() {
                       )}
                     </div>
                   )}
-              </div>
-                          )}
+
+              {/* How it Works Content - Separate from Business Plan */}
+              {(showHowItWorks || isSimulating || simulateResult) && (
+                <div className="p-4">
+                  {showHowItWorks && (
+                    <div>
+                      <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed min-h-24">
+                        {typedText}
+                        {isTyping && <span className="inline-block w-2 h-4 bg-gray-400 ml-1 align-baseline animate-pulse" />}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Simulation states */}
+                  {isSimulating && (
+                    <div className="my-3 flex justify-center">
+                      <div className="w-1/2">
+                        <div className="border border-gray-200 bg-gray-50 rounded-md h-9 px-4 flex items-center justify-center overflow-hidden">
+                          <div key={loadingMessageIndex} className="text-sm text-gray-700 nb-anim-loading-line">
+                            {loadingMessages[loadingMessageIndex]}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {!isSimulating && simulateResult && (
+                    <div className="mt-3 text-sm text-gray-800">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                        <span>Simulation complete in {Math.round(simulateResult.elapsedMs)} ms</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Started: {new Date(simulateResult.startedAt).toLocaleTimeString()} • Finished: {new Date(simulateResult.finishedAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {showHowItWorks && (
                 <div className="absolute right-3 bottom-3">
                   {howItWorksStep + 1 >= howItWorksTexts.length ? (
