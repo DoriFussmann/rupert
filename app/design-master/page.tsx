@@ -852,8 +852,8 @@ export default function DesignMaster() {
                     <div key={a.key} className="relative group">
                       <button
                         title={a.title}
-                        className="bg-blue-100 text-blue-800 border border-blue-300 rounded-md p-1 shadow-sm hover:bg-blue-200 transition-all nb-anim-fade-slide-in"
-                        style={{ animationDelay: `${idx * 60}ms` }}
+                        className="text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md p-1.5 transition-all nb-anim-shimmer-fade-in"
+                        style={{ animationDelay: `${idx * 80}ms` }}
                         onClick={a.key === 'trash' ? handleClearOutputs : undefined}
                       >
                         {a.svg}

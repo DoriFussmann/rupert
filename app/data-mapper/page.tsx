@@ -65,6 +65,9 @@ export default function DataMapperPage() {
   const [lastSentPayload, setLastSentPayload] = useState<any>(null);
   const [finalOutput, setFinalOutput] = useState<any>(null);
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isSavingDataMap, setIsSavingDataMap] = useState(false);
+  const [saveDataMapMessage, setSaveDataMapMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   // Model options based on LLM
   const modelsByLlm: Record<string, string[]> = {
@@ -337,6 +340,19 @@ export default function DataMapperPage() {
     setChatInput('');
     setIsTypingResponse(true);
     
+    // Check if this is a finalize request
+    const isFinalize = /\[\[FINALIZE\]\]/i.test(userMessage.text) || /\b(proceed|build|finalize)\b/i.test(userMessage.text);
+    
+    // If finalizing, trigger the UI effects
+    if (isFinalize) {
+      setIsFinalizing(true);
+      // Reset panels to default state (25/75)
+      setInputsExpanded(false);
+      setOutputsExpanded(false);
+      // Collapse the chat
+      setIsChatCollapsed(true);
+    }
+    
     try {
       // Build Responses API payload with the new message
       const thresholdDecimal = completionThreshold / 100;
@@ -515,6 +531,7 @@ export default function DataMapperPage() {
       setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsTypingResponse(false);
+      setIsFinalizing(false);
     }
   }
 
@@ -522,6 +539,46 @@ export default function DataMapperPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    }
+  }
+
+  // Handle saving data map to company
+  async function handleUpdateBusinessDataMap() {
+    if (!finalOutput) {
+      setSaveDataMapMessage({ type: 'error', text: 'No data to save' });
+      return;
+    }
+
+    setIsSavingDataMap(true);
+    setSaveDataMapMessage(null);
+
+    try {
+      const response = await fetch('/api/companies/update-data-map', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataMap: finalOutput })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update data map');
+      }
+
+      const result = await response.json();
+      setSaveDataMapMessage({ type: 'success', text: 'Business data map updated successfully!' });
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSaveDataMapMessage(null);
+      }, 3000);
+    } catch (error) {
+      console.error('Error updating data map:', error);
+      setSaveDataMapMessage({ 
+        type: 'error', 
+        text: error instanceof Error ? error.message : 'Failed to update data map'
+      });
+    } finally {
+      setIsSavingDataMap(false);
     }
   }
 
@@ -1205,9 +1262,24 @@ export default function DataMapperPage() {
                           </button>
                                               </div>
                                         </div>
+
+{/* Finalizing Preloader */}
+                  {isFinalizing && (
+                    <div className="p-4">
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <div className="nb-spinner-revolving">
+                          <div></div>
+                          <div></div>
+                          <div></div>
+                        </div>
+                        <p className="mt-4 text-sm text-gray-600 font-medium">Finalizing business plan...</p>
+                      </div>
+                    </div>
+                  )}
+
 {/* Business Plan Output - Always show when available */}
-                  {!isCallingApi && (finalOutput || callResponse) && (
-                    <div className="mt-3">
+                  {!isFinalizing && (finalOutput || callResponse) && (
+                    <div className="p-4">
                       {(() => {
                         console.log('=== DEBUG: Display Condition Check ===');
                         console.log('isCallingApi:', isCallingApi);
@@ -1291,6 +1363,29 @@ export default function DataMapperPage() {
                               </div>
                             </div>
                           </div>
+                          
+                          {/* Update Business Data Map Button */}
+                          <div className="relative mt-4">
+                            <div className="flex justify-end items-center gap-3">
+                              {saveDataMapMessage && (
+                                <div className={`text-sm px-3 py-1.5 rounded-md ${
+                                  saveDataMapMessage.type === 'success' 
+                                    ? 'bg-green-100 text-green-800 border border-green-300'
+                                    : 'bg-red-100 text-red-800 border border-red-300'
+                                }`}>
+                                  {saveDataMapMessage.text}
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={handleUpdateBusinessDataMap}
+                                disabled={isSavingDataMap}
+                                className="px-4 py-2 text-sm bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 border border-blue-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isSavingDataMap ? 'Saving...' : 'Update Business Data Map'}
+                              </button>
+                            </div>
+                          </div>
                         </>
                       ) : (
                         <>
@@ -1372,8 +1467,8 @@ export default function DataMapperPage() {
                     <div key={a.key} className="relative group">
                       <button
                         title={a.title}
-                        className="bg-blue-100 text-blue-800 border border-blue-300 rounded-md p-1 shadow-sm hover:bg-blue-200 transition-all nb-anim-fade-slide-in"
-                        style={{ animationDelay: `${idx * 60}ms` }}
+                        className="text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md p-1.5 transition-all nb-anim-shimmer-fade-in"
+                        style={{ animationDelay: `${idx * 80}ms` }}
                         onClick={a.key === 'trash' ? handleClearOutputs : undefined}
                       >
                         {a.svg}

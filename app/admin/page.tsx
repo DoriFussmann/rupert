@@ -135,6 +135,12 @@ export default function AdminPage() {
   const [editCompanyData, setEditCompanyData] = useState<Record<string, unknown>>({});
   const [editTaskData, setEditTaskData] = useState<Record<string, unknown>>({});
 
+  // Reset editing state when selected company changes
+  useEffect(() => {
+    setEditingCompany(false);
+    setEditCompanyData({});
+  }, [selectedCompany?.id]);
+
   // COMPANIES LIST FOR DROPDOWN
   const [companiesList, setCompaniesList] = useState<{id: string; name: string}[]>([]);
   
@@ -417,7 +423,7 @@ export default function AdminPage() {
               <svg className={`w-4 h-4 transform transition-transform ${showCompanyDropdown ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              <span>{uCompany || "Select Company (optional)"}</span>
+              <span>{uCompany ? (companiesList.find(c => c.id === uCompany)?.name || "Unknown Company") : "Select Company (optional)"}</span>
             </button>
             
             {showCompanyDropdown && (
@@ -434,7 +440,7 @@ export default function AdminPage() {
                     <button
                       key={company.id}
                       type="button"
-                      onClick={() => { setUCompany(company.name); setShowCompanyDropdown(false); }}
+                      onClick={() => { setUCompany(company.id); setShowCompanyDropdown(false); }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                     >
                       {company.name}
@@ -487,7 +493,7 @@ export default function AdminPage() {
                   <td className="nb-td">{u.email}</td>
                   <td className="nb-td">{u.name ?? "No name"}</td>
                   <td className="nb-td"><span className="nb-badge">{u.role === 'user' ? 'User' : 'Admin'}</span></td>
-                  <td className="nb-td">{u.company || "No company"}</td>
+                  <td className="nb-td">{u.company ? (companiesList.find(c => c.id === u.company)?.name || "Unknown Company") : "No company"}</td>
                   <td className="nb-td">
                     <div className="flex flex-wrap gap-1">
                       {u.pageAccess ? Object.entries(u.pageAccess).filter(([_, hasAccess]) => hasAccess).map(([page]) => (
@@ -850,45 +856,17 @@ export default function AdminPage() {
       </Section>
 
       <Section title="Companies">
-        <div className="grid md:grid-cols-1 gap-4 mb-6">
-          {companyFields.map(f => (
-            <div key={f.id}>
+        <div className="flex gap-4 mb-6 items-end">
+          {companyFields.filter(f => f.label === 'Name').map(f => (
+            <div key={f.id} className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-              {f.type === 'json' ? (
-                <div>
-                  <textarea
-                    placeholder={`Enter JSON for ${f.label}`}
-                    value={typeof companyRDraft[f.key] === 'object' ? JSON.stringify(companyRDraft[f.key] || {}, null, 2) : String(companyRDraft[f.key] || "")}
-                    onChange={(e) => {
-                      try {
-                        const parsed = JSON.parse(e.target.value);
-                        setCompanyRDraft({ ...companyRDraft, [f.key]: parsed });
-                      } catch {
-                        setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value });
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
-                    rows={6}
-                  />
-                  <div className="text-xs text-gray-500 mt-1">JSON format required</div>
-                </div>
-              ) : f.type === 'richtext' ? (
-                <textarea
-                  placeholder={`Enter ${f.label}`}
-                  value={String(companyRDraft[f.key] ?? "")}
-                  onChange={e => setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  rows={8}
-                />
-              ) : (
-                <input
-                  type="text"
-                  placeholder={f.label}
-                  value={String(companyRDraft[f.key] ?? "")}
-                  onChange={e => setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              )}
+              <input
+                type="text"
+                placeholder={f.label}
+                value={String(companyRDraft[f.key] ?? "")}
+                onChange={e => setCompanyRDraft({ ...companyRDraft, [f.key]: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
             </div>
           ))}
           <div>
@@ -903,9 +881,9 @@ export default function AdminPage() {
           <table className="nb-table">
             <thead>
               <tr className="border-b border-slate-200">
-                {companyFields.map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
-                <th className="nb-th">Created</th>
-                <th className="nb-th">Actions</th>
+                {companyFields
+                  .filter(f => !['Business Classification - Additional Details', 'Business Classification Confidence', 'Business Classification Rational', 'Business Classification Rationale', 'Business Classification Evidence', 'Business Classification Modeling Implications'].includes(f.label))
+                  .map(f => <th key={f.id} className="nb-th">{f.label}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -915,22 +893,15 @@ export default function AdminPage() {
                   onClick={() => setSelectedCompany(r)}
                   className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  {companyFields.map(f => <td key={f.id} className="nb-td">{String(r.data?.[f.key] ?? "")}</td>)}
-                  <td className="nb-td">{new Date(r.createdAt).toLocaleString()}</td>
-                  <td className="nb-td">
-                    <button 
-                      className="text-red-600 underline hover:text-red-800" 
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        if (confirm("Are you sure you want to delete this company?")) {
-                          await apiJson(`/api/collections/companies/records/${r.id}`, { method: "DELETE" });
-                          await loadCompanies();
-                        }
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
+                  {companyFields
+                    .filter(f => !['Business Classification - Additional Details', 'Business Classification Confidence', 'Business Classification Rational', 'Business Classification Rationale', 'Business Classification Evidence', 'Business Classification Modeling Implications'].includes(f.label))
+                    .map(f => {
+                      const value = String(r.data?.[f.key] ?? "");
+                      const displayValue = f.label === 'Raw Data' 
+                        ? value.split(/\s+/).slice(0, 2).join(' ') + (value.split(/\s+/).length > 2 ? '...' : '')
+                        : value;
+                      return <td key={f.id} className="nb-td">{displayValue}</td>;
+                    })}
                 </tr>
               ))}
             </tbody>
@@ -1068,7 +1039,7 @@ export default function AdminPage() {
                           <svg className={`w-4 h-4 transform transition-transform ${showModalCompanyDropdown ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
-                          <span>{editUserData.company || "Select Company (optional)"}</span>
+                          <span>{editUserData.company ? (companiesList.find(c => c.id === editUserData.company)?.name || "Unknown Company") : "Select Company (optional)"}</span>
                         </button>
                         
                         {showModalCompanyDropdown && (
@@ -1089,7 +1060,7 @@ export default function AdminPage() {
                                   key={company.id}
                                   type="button"
                                   onClick={() => { 
-                                    setEditUserData({...editUserData, company: company.name}); 
+                                    setEditUserData({...editUserData, company: company.id}); 
                                     setShowModalCompanyDropdown(false); 
                                   }}
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
@@ -1103,7 +1074,7 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <div className="text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                        {selectedUser.company || "No company"}
+                        {selectedUser.company ? (companiesList.find(c => c.id === selectedUser.company)?.name || "Unknown Company") : "No company"}
                       </div>
                     )}
                   </div>
@@ -1323,11 +1294,20 @@ export default function AdminPage() {
 
       {/* Company Details Modal */}
       {selectedCompany && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
-        }}>
+        <div 
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 50
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedCompany(null);
+              setEditingCompany(false);
+              setEditCompanyData({});
+            }
+          }}
+        >
           <div style={{
             width: '100%', maxWidth: '896px', aspectRatio: '16/9',
             backgroundColor: 'white', borderRadius: '16px',
@@ -1369,16 +1349,32 @@ export default function AdminPage() {
                       >
                         Empty Content
                       </button>
+                      <button 
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to delete this company? This action cannot be undone.')) {
+                            await apiJson(`/api/collections/companies/records/${selectedCompany.id}`, { method: "DELETE" });
+                            await loadCompanies();
+                            setSelectedCompany(null);
+                          }
+                        }}
+                        className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        Delete
+                      </button>
                     </>
                   )}
-                  <button onClick={() => setSelectedCompany(null)} className="text-gray-400 hover:text-gray-600">
+                  <button onClick={() => {
+                    setSelectedCompany(null);
+                    setEditingCompany(false);
+                    setEditCompanyData({});
+                  }} className="text-gray-400 hover:text-gray-600">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
               </div>
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 space-y-4 overflow-y-auto">
                 {companyFields.map(field => (
                   <div key={field.id}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
@@ -1450,7 +1446,10 @@ export default function AdminPage() {
                     Save Changes
                   </button>
                   <button
-                    onClick={() => setEditingCompany(false)}
+                    onClick={() => {
+                      setEditingCompany(false);
+                      setEditCompanyData({});
+                    }}
                     className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
                   >
                     Cancel
