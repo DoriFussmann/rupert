@@ -30,24 +30,14 @@ async function seedAdvisorFields() {
   if (!advisors) return;
 
   const fields = [
-<<<<<<< HEAD
     { label: "Name", key: "name", type: FieldType.text, required: true, order: 1 },
     { label: "Role", key: "role", type: FieldType.text, required: false, order: 2 },
     { label: "One-Liner", key: "oneliner", type: FieldType.text, required: false, order: 3 },
-    { label: "Prompt", key: "prompt", type: FieldType.text, required: false, order: 4 },
-    { label: "Image", key: "image", type: FieldType.image, required: false, order: 5 },
-    { label: "Knowledge Feed", key: "knowledgeFeed", type: FieldType.text, required: false, order: 6 },
-=======
-    { label: "Name", key: "name", type: "text", required: true, order: 1 },
-    { label: "Role", key: "role", type: "text", required: false, order: 2 },
-    { label: "One-Liner", key: "oneliner", type: "text", required: false, order: 3 },
-    // New canonical oneLiner key while preserving legacy "oneliner"
-    { label: "One-Liner", key: "oneLiner", type: "text", required: false, order: 4 },
-    { label: "Prompt", key: "prompt", type: "text", required: false, order: 5 },
-    { label: "Style", key: "style", type: "text", required: false, order: 6 },
-    { label: "Image", key: "image", type: "image", required: false, order: 50 },
-    { label: "Knowledge Feed", key: "knowledgeFeed", type: "text", required: false, order: 51 },
->>>>>>> 3ef7cf127bc07c6b4ea1a5b07183ad580ad96172
+    { label: "One-Liner", key: "oneLiner", type: FieldType.text, required: false, order: 4 },
+    { label: "Prompt", key: "prompt", type: FieldType.text, required: false, order: 5 },
+    { label: "Style", key: "style", type: FieldType.text, required: false, order: 6 },
+    { label: "Image", key: "image", type: FieldType.image, required: false, order: 50 },
+    { label: "Knowledge Feed", key: "knowledgeFeed", type: FieldType.text, required: false, order: 51 },
   ];
 
   for (const f of fields) {
@@ -378,6 +368,7 @@ async function seedToolsPagesCollection() {
     { name: "Design Master", active: false },
     { name: "Data Mapper", active: false },
     { name: "Strategy Planner", active: false },
+    { name: "Agent Kit", active: false },
   ];
   const existing = await prisma.record.findFirst({ where: { collectionId: tools.id } });
   if (!existing) {
