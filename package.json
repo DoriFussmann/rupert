@@ -9,6 +9,7 @@
     "postinstall": "prisma generate",
     "lint": "eslint",
     "create-admin": "node scripts/create-admin.mjs",
+    "seed-collections": "node scripts/seed-collections.mjs",
     "prisma:migrate": "prisma migrate dev --name init_collections",
     "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
     "seed": "npm run prisma:migrate && npm run prisma:seed",
