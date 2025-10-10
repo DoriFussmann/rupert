@@ -6,6 +6,7 @@ type DropdownOption = { label: string; action: () => void; separator?: never } |
 
 export default function StrategyPlanner() {
   const [outputsExpanded, setOutputsExpanded] = useState(false);
+  const [inputsExpanded, setInputsExpanded] = useState(false);
   const [inputsCollapsed, setInputsCollapsed] = useState(false);
   const [advisorImageUrl, setAdvisorImageUrl] = useState<string | null>(null);
   const [advisorName, setAdvisorName] = useState<string>('');
@@ -695,11 +696,11 @@ ${pageText}`;
     <>
       <NavigationHeader />
       <div style={{ paddingTop: 'calc(2.25rem + 1rem)' }}>
-        <div className={`flex ${outputsExpanded ? "gap-0" : "gap-4"}`}>
+        <div className={`flex ${outputsExpanded || inputsExpanded ? "gap-0" : "gap-4"}`}>
           {/* Left Panel - 40% width, aligned with page name ribbon */}
           <div
             className="relative"
-            style={{ width: outputsExpanded ? "0%" : "40%", transition: "width 200ms ease", pointerEvents: outputsExpanded ? "none" : "auto" }}
+            style={{ width: outputsExpanded ? "0%" : inputsExpanded ? "100%" : "40%", transition: "width 200ms ease", pointerEvents: outputsExpanded ? "none" : "auto" }}
           >
             <div className={`bg-white rounded-md border border-gray-200 ${outputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200 ${isInputsPanelBlinking ? "nb-anim-inputs-panel-blink" : ""}`}>
               <div
@@ -1127,12 +1128,15 @@ ${pageText}`;
           {/* Right Panel - 60% width, Outputs Panel */}
           <div
             className="overflow-hidden"
-            style={{ width: outputsExpanded ? "100%" : "calc(60% - 0.5rem)", transition: "width 200ms ease" }}
+            style={{ width: inputsExpanded ? "0%" : outputsExpanded ? "100%" : "calc(60% - 0.5rem)", transition: "width 200ms ease", pointerEvents: inputsExpanded ? "none" : "auto" }}
           >
-            <div className={`bg-white rounded-md border border-gray-200 transition-colors relative ${isOutputsPanelBlinking ? "nb-anim-outputs-panel-blink" : ""}`}>
+            <div className={`bg-white rounded-md border border-gray-200 ${inputsExpanded ? "opacity-0" : "opacity-100"} transition-opacity duration-200 transition-colors relative ${isOutputsPanelBlinking ? "nb-anim-outputs-panel-blink" : ""}`}>
               <div 
                 className="bg-gray-100 rounded-t-md px-4 py-2 border-b border-gray-200 cursor-pointer hover:bg-gray-200 transition-colors min-h-[52px] flex items-center"
-                onClick={() => setOutputsExpanded((v) => !v)}
+                onClick={() => {
+                  setInputsExpanded(false);
+                  setOutputsExpanded((v) => !v);
+                }}
                 role="button"
                 tabIndex={0}
                 aria-label="Toggle Outputs width"
@@ -1140,6 +1144,7 @@ ${pageText}`;
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
+                    setInputsExpanded(false);
                     setOutputsExpanded((v) => !v);
                   }
                 }}
