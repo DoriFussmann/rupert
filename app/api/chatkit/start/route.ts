@@ -34,11 +34,16 @@ export async function POST(request: NextRequest) {
 
     // Create ChatKit session with OpenAI
     // TODO: Change version from "draft" to "production" when ready
-    const session = await openai.chatkit.createSession({
+    // Note: chatkit API may not be available in all SDK versions
+    const session = await (openai as any).chatkit?.createSession({
       workflow_id: workflowId,
       version: 'draft', // Use "draft" for testing, change to workflow version number for production
       metadata: userId ? { userId } : undefined, // Pass userId for personalization if available
     });
+    
+    if (!session) {
+      throw new Error('ChatKit API not available in current OpenAI SDK version');
+    }
 
     // Return client secret (short-lived token for browser)
     return NextResponse.json({

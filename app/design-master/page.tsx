@@ -114,7 +114,7 @@ export default function DesignMaster() {
     ],
   };
 
-  const actionItems: Array<{ key: string; title: string; svg: JSX.Element }> = [
+  const actionItems: Array<{ key: string; title: string; svg: React.ReactElement }> = [
     {
       key: 'trash',
       title: 'Clear Outputs',
@@ -863,15 +863,15 @@ export default function DesignMaster() {
                       <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1000]">
                         <div className="py-2">
                           {dropdownOptions[a.key as keyof typeof dropdownOptions]?.map((option, optIdx) => (
-                            option.separator ? (
+                            ('separator' in option && option.separator) ? (
                               <hr key={`sep-${optIdx}`} className="my-1 border-gray-200" />
                             ) : (
                               <button
                                 key={`opt-${optIdx}`}
-                                onClick={option.action}
+                                onClick={'action' in option ? option.action : undefined}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                               >
-                                {option.label}
+                                {'label' in option ? option.label : ''}
                               </button>
                             )
                           ))}

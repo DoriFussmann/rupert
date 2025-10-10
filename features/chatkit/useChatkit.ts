@@ -9,7 +9,7 @@ import { useChatKit } from '@openai/chatkit-react';
 export function useChatkit() {
   const { control } = useChatKit({
     api: {
-      async getClientSecret(currentClientSecret?: string) {
+      async getClientSecret(currentClientSecret: string | null): Promise<string> {
         if (!currentClientSecret) {
           const res = await fetch('/api/chatkit/start', { method: 'POST' });
           if (!res.ok) throw new Error('Failed to start ChatKit session');

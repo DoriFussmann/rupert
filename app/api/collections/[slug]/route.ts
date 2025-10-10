@@ -1,7 +1,8 @@
 import { prisma } from "@/app/lib/prisma";
 import { methodNotAllowed } from "@/app/api/_utils/http";
-type Ctx = { params: { slug: string } };
-export async function GET(_req: Request, { params }: Ctx) {
+type Ctx = { params: Promise<{ slug: string }> };
+export async function GET(_req: Request, ctx: Ctx) {
+  const params = await ctx.params;
   const { slug } = params;
   const c = await prisma.collection.findUnique({ where: { slug }});
   if (!c) return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });

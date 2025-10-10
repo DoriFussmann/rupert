@@ -12,16 +12,18 @@ if (typeof process !== 'undefined' && process.env.NODE_ENV !== "production" && t
 
 const skipDb = process.env.SKIP_DB === "1";
 
+if (skipDb) {
+  throw new Error("Database is disabled (SKIP_DB=1)");
+}
+
 const g = global as typeof global & {
-  prisma?: PrismaClient | null;
+  prisma?: PrismaClient;
 };
 
-export const prisma = skipDb 
-  ? null 
-  : (g.prisma || new PrismaClient({
-      log: ["warn", "error"]
-    }));
+export const prisma: PrismaClient = g.prisma || new PrismaClient({
+  log: ["warn", "error"]
+});
 
-if (process.env.NODE_ENV !== "production" && !skipDb) {
+if (process.env.NODE_ENV !== "production") {
   g.prisma = prisma;
 }

@@ -1,13 +1,15 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { use } from "react";
 import NavigationHeader from "../../../../../components/NavigationHeader";
 
 type Props = {
-  params: { slug: string; id: string };
+  params: Promise<{ slug: string; id: string }>;
 };
 
-export default function RecordEditPage({ params }: Props) {
+export default function RecordEditPage(props: Props) {
+  const params = use(props.params);
   const { slug, id } = params;
   const router = useRouter();
 

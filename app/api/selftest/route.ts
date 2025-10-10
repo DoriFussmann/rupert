@@ -29,7 +29,11 @@ export async function GET(req: NextRequest) {
   if (token) {
     try {
       const { payload } = await jwtVerify(token, secret);
-      auth = { authenticated: true, email: payload?.email ?? null, role: payload?.role ?? null };
+      auth = { 
+        authenticated: true, 
+        email: (typeof payload?.email === 'string' ? payload.email : null), 
+        role: (typeof payload?.role === 'string' ? payload.role : null) 
+      };
     } catch {
       auth = { authenticated: false, email: null, role: null };
     }

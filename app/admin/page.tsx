@@ -351,13 +351,14 @@ export default function AdminPage() {
     }
   }
 
-  async function addField() {
-    await apiJson(`/api/collections/${activeSlug}/fields`, { method: "POST", body: JSON.stringify(fDraft) });
-    setFDraft({ label:"", key:"", type:"text", required:false, order:0 }); await loadCollection(activeSlug);
-  }
-  async function removeField(id: string) { await apiJson(`/api/collections/${activeSlug}/fields/${id}`, { method: "DELETE" }); await loadCollection(activeSlug); }
+  // Dead code - commented out to fix build
+  // async function addField() {
+  //   await apiJson(`/api/collections/${activeSlug}/fields`, { method: "POST", body: JSON.stringify(fDraft) });
+  //   setFDraft({ label:"", key:"", type:"text", required:false, order:0 }); await loadCollection(activeSlug);
+  // }
+  // async function removeField(id: string) { await apiJson(`/api/collections/${activeSlug}/fields/${id}`, { method: "DELETE" }); await loadCollection(activeSlug); }
 
-  async function addRecord() { await apiJson(`/api/collections/${activeSlug}/records`, { method: "POST", body: JSON.stringify({ data: rDraft }) }); await loadCollection(activeSlug); }
+  // async function addRecord() { await apiJson(`/api/collections/${activeSlug}/records`, { method: "POST", body: JSON.stringify({ data: rDraft }) }); await loadCollection(activeSlug); }
 
   const fieldTypes = useMemo(()=>["text","number","image","json","date"], []);
 
@@ -744,7 +745,7 @@ export default function AdminPage() {
       <Section title="System Prompts">
         <div className="grid md:grid-cols-3 gap-2 mb-3">
           {systemPromptFields.map(f => (
-            <TextInput key={f.id} placeholder={f.label} value={systemPromptRDraft[f.key] ?? ""} onChange={e=>setSystemPromptRDraft({ ...systemPromptRDraft, [f.key]: e.target.value })} />
+            <TextInput key={f.id} placeholder={f.label} value={String(systemPromptRDraft[f.key] ?? "")} onChange={e=>setSystemPromptRDraft({ ...systemPromptRDraft, [f.key]: e.target.value })} />
           ))}
           <div className="md:col-span-3">
             <button className="nb-btn nb-btn-primary" onClick={async () => {
@@ -805,7 +806,7 @@ export default function AdminPage() {
       <Section title="Advisors">
         <div className="grid md:grid-cols-3 gap-2 mb-3">
           {advisorFields.map(f => (
-            <TextInput key={f.id} placeholder={f.label} value={advisorRDraft[f.key] ?? ""} onChange={e=>setAdvisorRDraft({ ...advisorRDraft, [f.key]: e.target.value })} />
+            <TextInput key={f.id} placeholder={f.label} value={String(advisorRDraft[f.key] ?? "")} onChange={e=>setAdvisorRDraft({ ...advisorRDraft, [f.key]: e.target.value })} />
           ))}
           <div className="md:col-span-3">
             <button className="nb-btn nb-btn-primary" onClick={async () => {
@@ -1944,18 +1945,22 @@ export default function AdminPage() {
                               Upload Image
                             </label>
                           </div>
-                          {editAdvisorData[field.key] && (
-                            <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden">
-                              <img 
-                                src={(String(editAdvisorData[field.key]).startsWith('http') || String(editAdvisorData[field.key]).startsWith('/uploads/')) ? String(editAdvisorData[field.key]) : `/uploads/${editAdvisorData[field.key]}`}
-                                alt="Preview" 
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
-                            </div>
-                          )}
+                          {((): React.ReactNode => {
+                            const imageValue = editAdvisorData[field.key];
+                            if (!imageValue || typeof imageValue !== 'string') return null;
+                            return (
+                              <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden">
+                                <img 
+                                  src={(imageValue.startsWith('http') || imageValue.startsWith('/uploads/')) ? imageValue : `/uploads/${imageValue}`}
+                                  alt="Preview" 
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            );
+                          })()}
                         </div>
                       ) : (
                         <textarea

@@ -16,9 +16,14 @@ export async function POST(request: NextRequest) {
 
     // Refresh using the current client secret. If your installed OpenAI SDK
     // uses a different method name, align here accordingly.
-    const session = await openai.chatkit.refreshSession({
+    // Note: chatkit API may not be available in all SDK versions
+    const session = await (openai as any).chatkit?.refreshSession({
       client_secret: currentClientSecret,
     });
+    
+    if (!session) {
+      throw new Error('ChatKit API not available in current OpenAI SDK version');
+    }
 
     return NextResponse.json({ client_secret: session.client_secret });
   } catch (error) {

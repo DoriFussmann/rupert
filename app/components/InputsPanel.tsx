@@ -336,7 +336,7 @@ export default function InputsPanel({
       "temperature": temperature,
       "top_p": topP,
       "max_tokens": maxOutputTokens,
-      "store": store,
+      "store": storeLogs,
       "messages": messages
     };
   };

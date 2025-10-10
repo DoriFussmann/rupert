@@ -2,10 +2,12 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { compileStructureTree } from "@/lib/structureCompiler";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(req: NextRequest, { params }: Ctx) {
+export async function GET(req: NextRequest, ctx: Ctx) {
   try {
+    const params = await ctx.params;
+    
     // Resolve structures collection by slug
     const structuresCollection = await prisma.collection.findUnique({
       where: { slug: "structures" }

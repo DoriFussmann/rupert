@@ -7,8 +7,8 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // Optional: unblock builds even if there are TS errors (we can re-enable later)
-    ignoreBuildErrors: true,
+    // TEMPORARILY ENABLED to catch build errors that prevent API routes from deploying
+    ignoreBuildErrors: false,
   },
   webpack: (config, { isServer }) => {
     // Only apply webpack config when not using Turbopack

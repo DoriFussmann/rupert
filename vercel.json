@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapis.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "framework": "nextjs",
+  "installCommand": "npm install"
+}
+

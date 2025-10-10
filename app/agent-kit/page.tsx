@@ -48,7 +48,6 @@ export default function AgentKit() {
               <div className="h-[600px]">
                 <ChatKit
                   control={control}
-                  placeholder="Ask me anything about strategy, financial modeling, or business planning..."
                   style={{ position: 'relative', zIndex: 1 }}
                 />
               </div>
