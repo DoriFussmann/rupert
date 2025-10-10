@@ -33,12 +33,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Create ChatKit session with OpenAI
-    // TODO: Change version from "draft" to "production" when ready
     // Note: chatkit API may not be available in all SDK versions
     const session = await (openai as any).chatkit?.createSession({
       workflow_id: workflowId,
-      version: 'draft', // Use "draft" for testing, change to workflow version number for production
-      metadata: userId ? { userId } : undefined, // Pass userId for personalization if available
+      // Pin the published workflow version from Agent Builder:
+      version: 4, // e.g., 3
+      metadata: userId ? { userId } : undefined,
     });
     
     if (!session) {
