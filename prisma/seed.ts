@@ -370,18 +370,50 @@ async function seedToolsPagesCollection() {
     { name: "Strategy Planner", active: false },
     { name: "Agent Kit", active: false },
   ];
-  const existing = await prisma.record.findFirst({ where: { collectionId: tools.id } });
-  if (!existing) {
-    await prisma.record.createMany({
-      data: pages.map(p => ({ collectionId: tools.id, data: p })),
-    });
+  
+  // Build a map of existing page records by name
+  const existing = await prisma.record.findMany({ where: { collectionId: tools.id } });
+  const norm = (s: string) => s.trim().toLowerCase();
+  const nameToRecord: Record<string, string> = {};
+  for (const r of existing) {
+    const name = (r as any).data?.name;
+    if (typeof name === "string" && name.trim()) {
+      nameToRecord[norm(name)] = r.id;
+    }
   }
+
+  let created = 0;
+  let updated = 0;
+
+  // Upsert each page individually
+  for (const page of pages) {
+    const key = norm(page.name);
+    const existingId = nameToRecord[key];
+
+    if (existingId) {
+      await prisma.record.update({
+        where: { id: existingId },
+        data: { data: page },
+      });
+      updated++;
+    } else {
+      await prisma.record.create({
+        data: { collectionId: tools.id, data: page },
+      });
+      created++;
+    }
+  }
+
+  console.log(`Pages: created ${created}, updated ${updated}`);
 }
 
 async function seedToolsPagesRecords() {
-  const tools = await prisma.collection.findUnique({ where: { slug: "tools-pages" } });
+  const tools = await prisma.collection.findUnique({ where: { slug: "pages" } });
   const advisors = await prisma.collection.findUnique({ where: { slug: "advisors" } });
-  if (!tools) return;
+  if (!tools) {
+    console.log("⚠️  Pages collection not found, skipping detailed page records");
+    return;
+  }
 
   // Build advisor name -> id map (case-insensitive)
   const advisorIdByName: Record<string, string> = {};
