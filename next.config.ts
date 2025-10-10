@@ -10,15 +10,18 @@ const nextConfig: NextConfig = {
     // Optional: unblock builds even if there are TS errors (we can re-enable later)
     ignoreBuildErrors: true,
   },
-  webpack: (config) => {
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: [
-        '**/node_modules/**',
-        '**/.next/**',
-        '**/audit_out/**'
-      ]
-    };
+  webpack: (config, { isServer }) => {
+    // Only apply webpack config when not using Turbopack
+    if (!config.experiments?.turbopack) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          '**/node_modules/**',
+          '**/.next/**',
+          '**/audit_out/**'
+        ]
+      };
+    }
     return config;
   },
   async redirects() {
