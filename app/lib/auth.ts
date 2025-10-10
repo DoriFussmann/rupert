@@ -1,7 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose'
 
 const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-key'
+  process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET || (() => {
+    throw new Error('JWT_SECRET or AUTH_JWT_SECRET environment variable must be set');
+  })()
 )
 
 export async function signJWT(payload: Record<string, unknown>) {
