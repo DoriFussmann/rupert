@@ -1,6 +1,14 @@
-import { config } from "dotenv";
-config({ override: true });
 import { PrismaClient } from "@prisma/client";
+
+// Only use dotenv in development (not in Edge Runtime)
+if (typeof process !== 'undefined' && process.env.NODE_ENV !== "production" && typeof window === 'undefined') {
+  try {
+    const { config } = require("dotenv");
+    config({ override: true });
+  } catch (e) {
+    // dotenv not available in Edge Runtime, that's ok
+  }
+}
 
 const skipDb = process.env.SKIP_DB === "1";
 
