@@ -1,4 +1,3 @@
-// app/api/agent-kit/start/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyJWT } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
@@ -16,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userData = await prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: { id: String(payload.userId) },
       select: { email: true, name: true }
     });
 
