@@ -368,7 +368,6 @@ async function seedToolsPagesCollection() {
     { name: "Design Master", active: false },
     { name: "Data Mapper", active: false },
     { name: "Strategy Planner", active: false },
-    { name: "Agent Kit", active: false },
   ];
   
   // Build a map of existing page records by name
