@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     const apiUrl = 'https://api.openai.com/v1/chatkit/sessions';
     const requestBody = {
       workflow: workflowId,
+      user: 'anonymous-user-' + Date.now(), // Unique user ID for each session
     };
 
     console.log('Request URL:', apiUrl);
