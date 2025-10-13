@@ -2,7 +2,6 @@ import "./globals.css";
 import Link from "next/link";
 import Script from "next/script";
 import { Inter } from "next/font/google";
-import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"], weight: ["100","200","300","400","500","600","700","800","900"] });
 

@@ -1,5 +1,4 @@
 'use client';
-<<<<<<< HEAD
 
 import { ChatKit, useChatKit } from '@openai/chatkit-react';
 import { useEffect, useState } from 'react';
@@ -86,19 +85,6 @@ export default function AgentKitPage() {
           className="w-full h-full"
         />
       </main>
-=======
-
-import { ChatKit } from '@openai/chatkit-react';
-import { useChatkit } from '@/features/chatkit/useChatkit';
-
-export default function AgentKitPage() {
-  const { control } = useChatkit();
-  
-  return (
-    <div className="h-[calc(100vh-64px)] w-full">
-      <ChatKit control={control} />
->>>>>>> 79f0e5871b4c3eee4345b8fedc843105a254939e
     </div>
   );
 }
-
