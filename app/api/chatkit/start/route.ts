@@ -1,50 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyJWT } from '@/app/lib/auth';
-import { prisma } from '@/app/lib/prisma';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(request: NextRequest) {
   try {
-    // Require auth via cookie JWT
     const token = request.cookies.get('auth-token')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const payload = await verifyJWT(token);
-    const userId = String(payload.userId || '');
-    if (!userId) {
+    if (!payload?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch minimal user context
-    const userData = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true, name: true }
+    const session = await openai.beta.chatkit.sessions.create({
+      user: String(payload.userId),
+      workflow: {
+        id: process.env.WORKFLOW_ID!
+      }
     });
 
-    // Call OpenAI Realtime Sessions API
-    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview-2024-12-17',
-        voice: 'sage',
-        instructions: `You are an assistant with access to user context: ${JSON.stringify(userData)}`
-      }),
+    return NextResponse.json({ 
+      client_secret: session.client_secret 
     });
-
-    const data = await response.json();
-    if (!response.ok) {
-      return NextResponse.json({ error: 'Failed to generate token', details: data }, { status: response.status });
-    }
-
-    return NextResponse.json(data);
+    
   } catch (error) {
-    console.error('Token generation error:', error);
-    return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 });
+    console.error('ChatKit session error:', error);
+    return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
   }
 }
 

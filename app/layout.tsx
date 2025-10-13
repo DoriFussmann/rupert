@@ -1,6 +1,7 @@
 import "./globals.css";
 import Link from "next/link";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"], weight: ["100","200","300","400","500","600","700","800","900"] });
 
@@ -56,6 +57,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="nb-container py-6">
           {children}
         </main>
+        <Script 
+          src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js" 
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
