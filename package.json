@@ -16,6 +16,8 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
+    "@openai/chatkit": "^1.0.0",
+    "@openai/chatkit-react": "^1.1.1",
     "@prisma/client": "^6.16.2",
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.2",
