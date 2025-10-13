@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
+        'OpenAI-Beta': 'chatkit_beta=v1',
       },
       body: JSON.stringify(requestBody),
     });
